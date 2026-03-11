@@ -1,0 +1,36 @@
+# Node.js
+node_modules/
+dist/
+build/
+.cache/
+
+# Environment
+.env
+.env.local
+.env.production
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+
+# Prisma
+backend/prisma/migrations/*.sql.bak
+
+# IDE
+.vscode/settings.json
+.idea/
+*.suo
+*.user
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Coverage
+coverage/
+.nyc_output/
+
+# Temp
+*.tmp
+*.temp

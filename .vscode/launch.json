@@ -1,0 +1,35 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug Backend",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["-r", "ts-node/register", "-r", "tsconfig-paths/register"],
+      "args": ["src/index.ts"],
+      "cwd": "${workspaceFolder}/backend",
+      "envFile": "${workspaceFolder}/backend/.env",
+      "sourceMaps": true,
+      "outFiles": ["${workspaceFolder}/backend/dist/**/*.js"],
+      "console": "integratedTerminal",
+      "restart": true
+    },
+    {
+      "name": "Debug Frontend (Chrome)",
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://localhost:5173",
+      "webRoot": "${workspaceFolder}/frontend/src",
+      "sourceMapPathOverrides": {
+        "webpack:///./src/*": "${webRoot}/*"
+      }
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Full Stack Debug",
+      "configurations": ["Debug Backend", "Debug Frontend (Chrome)"]
+    }
+  ]
+}

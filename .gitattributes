@@ -1,0 +1,19 @@
+# Force LF line endings for all text files on every OS.
+# This prevents Windows from converting LF → CRLF on checkout,
+# which would break Prettier's endOfLine: lf enforcement.
+
+* text=auto eol=lf
+
+# Explicitly mark binary files to avoid corruption
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.ttf  binary
+*.eot  binary
+*.pdf  binary
+*.zip  binary

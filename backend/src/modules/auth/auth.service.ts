@@ -1,0 +1,85 @@
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import { prisma } from '../../config/database';
+import { AppError } from '../../middlewares/error.middleware';
+import type { RegisterInput, LoginInput } from './auth.schema';
+
+const SALT_ROUNDS = 12;
+
+function generateTokens(userId: string) {
+  const accessToken = jwt.sign({ userId }, process.env.JWT_SECRET!, {
+    expiresIn: process.env.JWT_EXPIRES_IN || '15m',
+  });
+  const refreshToken = jwt.sign({ userId }, process.env.JWT_REFRESH_SECRET!, {
+    expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
+  });
+  return { accessToken, refreshToken };
+}
+
+export async function register(input: RegisterInput) {
+  const existing = await prisma.user.findFirst({
+    where: {
+      OR: [{ email: input.email }, { username: input.username }],
+    },
+  });
+
+  if (existing) {
+    if (existing.email === input.email) throw new AppError('Email đã được sử dụng', 409);
+    throw new AppError('Username đã được sử dụng', 409);
+  }
+
+  const hashedPassword = await bcrypt.hash(input.password, SALT_ROUNDS);
+
+  const user = await prisma.user.create({
+    data: {
+      email: input.email,
+      username: input.username,
+      password: hashedPassword,
+    },
+    select: {
+      id: true,
+      email: true,
+      username: true,
+      avatar: true,
+      balance: true,
+      role: true,
+      createdAt: true,
+    },
+  });
+
+  const tokens = generateTokens(user.id);
+  return { user: { ...user, balance: Number(user.balance) }, tokens };
+}
+
+export async function login(input: LoginInput) {
+  const user = await prisma.user.findUnique({
+    where: { email: input.email },
+  });
+
+  if (!user) throw new AppError('Email hoặc mật khẩu không đúng', 401);
+
+  const isValid = await bcrypt.compare(input.password, user.password);
+  if (!isValid) throw new AppError('Email hoặc mật khẩu không đúng', 401);
+
+  const { password: _pw, ...safeUser } = user;
+  const tokens = generateTokens(user.id);
+
+  return {
+    user: { ...safeUser, balance: Number(safeUser.balance) },
+    tokens,
+  };
+}
+
+export async function refreshAccessToken(refreshToken: string) {
+  try {
+    const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET!) as { userId: string };
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.userId },
+    });
+    if (!user) throw new AppError('User not found', 401);
+    const tokens = generateTokens(user.id);
+    return tokens;
+  } catch {
+    throw new AppError('Invalid or expired refresh token', 401);
+  }
+}

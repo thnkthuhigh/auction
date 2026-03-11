@@ -1,0 +1,29 @@
+{
+  "recommendations": [
+    // Required
+    "esbenp.prettier-vscode",
+    "dbaeumer.vscode-eslint",
+    "Prisma.prisma",
+
+    // TypeScript / React
+    "bradlc.vscode-tailwindcss",
+    "dsznajder.es7-react-js-snippets",
+    "christian-kohler.path-intellisense",
+    "formulahendry.auto-rename-tag",
+
+    // Git
+    "eamodio.gitlens",
+    "mhutchie.git-graph",
+
+    // Docker
+    "ms-azuretools.vscode-docker",
+
+    // REST testing
+    "humao.rest-client",
+
+    // Productivity
+    "usernamehw.errorlens",
+    "streetsidesoftware.code-spell-checker",
+    "aaron-bond.better-comments"
+  ]
+}

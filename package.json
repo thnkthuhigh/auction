@@ -1,0 +1,52 @@
+{
+  "name": "auction-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "concurrently --names \"BE,FE\" --prefix-colors \"cyan,magenta\" \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "npm run dev --workspace=backend",
+    "dev:frontend": "npm run dev --workspace=frontend",
+    "build": "npm run build --workspace=packages/shared && npm run build --workspace=backend && npm run build --workspace=frontend",
+    "lint": "npm run lint --workspaces --if-present",
+    "lint:fix": "npm run lint:fix --workspaces --if-present",
+    "format": "prettier --write \"**/*.{ts,tsx,js,json,md,yml}\" --ignore-path .prettierignore",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,json,md,yml}\" --ignore-path .prettierignore",
+    "type-check": "npm run type-check --workspaces --if-present",
+    "prepare": "husky",
+    "prisma:studio": "npm run studio --workspace=backend",
+    "prisma:migrate": "npm run migrate --workspace=backend",
+    "prisma:seed": "npm run seed --workspace=backend",
+    "docker:up": "docker-compose up -d postgres redis",
+    "docker:down": "docker-compose down",
+    "setup": "node scripts/setup.mjs"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^18.6.1",
+    "@commitlint/config-conventional": "^18.6.1",
+    "@typescript-eslint/eslint-plugin": "^7.1.0",
+    "@typescript-eslint/parser": "^7.1.0",
+    "concurrently": "^8.2.2",
+    "eslint": "^8.57.0",
+    "husky": "^9.0.11",
+    "lint-staged": "^15.2.2",
+    "prettier": "^3.2.5"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{js,json,md,yml}": [
+      "prettier --write"
+    ]
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  }
+}

@@ -1,0 +1,96 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum AuctionStatus {
+  PENDING    // Chưa bắt đầu
+  ACTIVE     // Đang diễn ra
+  ENDED      // Đã kết thúc
+  CANCELLED  // Đã huỷ
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  username  String   @unique
+  password  String
+  avatar    String?
+  balance   Decimal  @default(0) @db.Decimal(18, 2)
+  role      Role     @default(USER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  auctions      Auction[] @relation("AuctionSeller")
+  bids          Bid[]
+  wonAuctions   Auction[] @relation("AuctionWinner")
+
+  @@map("users")
+}
+
+model Category {
+  id       String    @id @default(uuid())
+  name     String    @unique
+  slug     String    @unique
+  auctions Auction[]
+
+  @@map("categories")
+}
+
+model Auction {
+  id           String        @id @default(uuid())
+  title        String
+  description  String
+  imageUrl     String?
+  startPrice   Decimal       @db.Decimal(18, 2)
+  currentPrice Decimal       @db.Decimal(18, 2)
+  minBidStep   Decimal       @default(1000) @db.Decimal(18, 2)
+  status       AuctionStatus @default(PENDING)
+  startTime    DateTime
+  endTime      DateTime
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  // Relations
+  seller     User     @relation("AuctionSeller", fields: [sellerId], references: [id])
+  sellerId   String
+  winner     User?    @relation("AuctionWinner", fields: [winnerId], references: [id])
+  winnerId   String?
+  category   Category @relation(fields: [categoryId], references: [id])
+  categoryId String
+  bids       Bid[]
+
+  @@index([status])
+  @@index([endTime])
+  @@index([sellerId])
+  @@map("auctions")
+}
+
+model Bid {
+  id        String   @id @default(uuid())
+  amount    Decimal  @db.Decimal(18, 2)
+  createdAt DateTime @default(now())
+
+  // Relations
+  bidder    User    @relation(fields: [bidderId], references: [id])
+  bidderId  String
+  auction   Auction @relation(fields: [auctionId], references: [id])
+  auctionId String
+
+  @@index([auctionId])
+  @@index([bidderId])
+  @@map("bids")
+}
