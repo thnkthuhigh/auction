@@ -1,6 +1,6 @@
 # System Architecture
 
-> Tài liệu này giúp AI tools và thành viên hiểu toàn bộ hệ thống trước khi sinh code.  
+> Tài liệu này giúp AI tools và thành viên hiểu toàn bộ hệ thống trước khi sinh code.
 > Đọc trước khi bắt đầu feature mới.
 
 ---
@@ -154,7 +154,7 @@ socket.on('user:outbid', (data: UserOutbidEvent) => {}); // you were outbid
 socket.on('auction:updated', (data: Partial<AuctionDto>) => {});
 ```
 
-**Rooms:** Mỗi auction có room riêng: `auction:${auctionId}`  
+**Rooms:** Mỗi auction có room riêng: `auction:${auctionId}`
 **Auth:** Socket kết nối phải có JWT token trong `handshake.auth.token`
 
 ---
@@ -214,7 +214,7 @@ ACTIVE → ENDED (khi endTime đến, scheduler tự chuyển)
 ACTIVE → CANCELLED (seller/admin cancel thủ công)
 ```
 
-**Scheduler:** `backend/src/services/auction-scheduler.service.ts`  
+**Scheduler:** `backend/src/services/auction-scheduler.service.ts`
 Cron chạy mỗi 30 giây, tự động:
 
 1. Tìm auction DRAFT có startTime ≤ now → chuyển ACTIVE

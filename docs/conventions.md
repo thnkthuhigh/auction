@@ -1,6 +1,6 @@
 # Coding Conventions
 
-> **Tất cả AI tools (Copilot, Cursor, ChatGPT...) và thành viên đều phải tuân theo tài liệu này.**  
+> **Tất cả AI tools (Copilot, Cursor, ChatGPT...) và thành viên đều phải tuân theo tài liệu này.**
 > ESLint sẽ tự động bắt hầu hết các lỗi — nhưng một số quy tắc cần ý thức thủ công.
 
 ---
