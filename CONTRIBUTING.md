@@ -256,5 +256,64 @@ Never commit `.env` files. Add new variables to `.env.example` with a placeholde
 ## Getting Help
 
 - Check the [README](./README.md) for architecture overview and API docs
+- **Full architecture + API reference:** [`docs/architecture.md`](./docs/architecture.md)
+- **Coding conventions:** [`docs/conventions.md`](./docs/conventions.md)
 - Ask in the team group chat before going down a rabbit hole
 - If you're stuck for >30 minutes, ask — don't push broken code just to hit a deadline
+
+---
+
+## Using AI Tools (Copilot, Cursor, ChatGPT, etc.)
+
+> Đa số thành viên dùng AI để code — rules này giúp AI sinh ra code đúng pattern.
+
+### Trước khi dùng AI cho feature mới, đọc:
+
+1. [`docs/architecture.md`](./docs/architecture.md) — để AI hiểu hệ thống
+2. [`docs/conventions.md`](./docs/conventions.md) — để AI biết đặt file ở đâu
+3. File tương tự đã có (ví dụ: xem `auction.service.ts` trước khi tạo `bid.service.ts`)
+
+### Prompt template hiệu quả
+
+```
+Tôi đang làm dự án auction platform monorepo:
+- Backend: Express + Prisma + Socket.IO + TypeScript
+- Frontend: React + Vite + Zustand + React Query + TypeScript
+- Shared types: packages/shared
+
+Convention:
+- Mọi error đều throw AppError(message, statusCode)
+- Route luôn có middleware: authenticate → validateRequest(schema) → controller
+- Controller chỉ gọi service, không có logic
+- Frontend không fetch trực tiếp, dùng React Query + service function
+- Không dùng any, không dùng @ts-ignore, không import axios trực tiếp
+
+Feature cần làm: [MÔ TẢ FEATURE]
+Hãy tạo [file cụ thể cần tạo].
+```
+
+### AI thường sai ở đâu — review kỹ những điểm này
+
+| ❌ AI thường sinh ra                      | ✅ Phải sửa thành                              |
+| ----------------------------------------- | ---------------------------------------------- |
+| `const x: any = ...`                      | Type cụ thể hoặc generic                       |
+| `useEffect(() => { fetch(...) })`         | `useQuery` + service function                  |
+| `import axios from 'axios'`               | `import { api } from '@/services/api.service'` |
+| `res.status(404).json(...)` trong service | `throw new AppError('...', 404)`               |
+| Route thiếu `authenticate`                | Thêm middleware                                |
+| `$queryRawUnsafe(...)`                    | `$queryRaw\`...\`` hoặc Prisma methods         |
+| Type định nghĩa trong component           | Move vào `packages/shared/src/types/`          |
+| `../../..` relative imports               | Path alias `@/` hoặc `@auction/shared`         |
+| `console.log(...)`                        | Xóa trước commit                               |
+| Tạo util function mới                     | Kiểm tra `@/utils/` đã có chưa                 |
+
+### ESLint sẽ tự động bắt
+
+ESLint được cấu hình để tự bắt những lỗi AI hay sinh ra:
+
+- `@typescript-eslint/no-explicit-any: error` — bắt `any`
+- `@typescript-eslint/ban-ts-comment` — bắt `@ts-ignore` / `@ts-nocheck`
+- `no-restricted-syntax` — bắt `$queryRawUnsafe`
+- `no-restricted-imports` — warn khi import `axios` trực tiếp
+- `no-eval` + `no-implied-eval` + `no-new-func` — bắt code injection risks
+- Commit hook chạy ESLint tự động — code lỗi sẽ bị block trước khi commit
