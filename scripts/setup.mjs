@@ -1,10 +1,11 @@
 #!/usr/bin/env node
+/* eslint-disable no-console */
 /**
  * Automated setup script for new team members.
  * Run: node scripts/setup.mjs
  */
 import { execSync, spawnSync } from 'child_process';
-import { existsSync, copyFileSync, readFileSync } from 'fs';
+import { existsSync, copyFileSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
