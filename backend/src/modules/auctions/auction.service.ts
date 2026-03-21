@@ -1,8 +1,8 @@
-import { AuctionStatus } from '@prisma/client';
+import type { AuctionReviewStatus, AuctionStatus } from '@prisma/client';
 import { prisma } from '../../config/database';
 import { AppError } from '../../middlewares/error.middleware';
 import { redis, REDIS_KEYS } from '../../config/redis';
-import type { CreateAuctionInput, UpdateAuctionInput } from './auction.schema';
+import type { CreateAuctionInput, ReviewAuctionInput, UpdateAuctionInput } from './auction.schema';
 
 function formatAuction(a: Record<string, unknown> & { _count?: { bids: number } }) {
   return {
@@ -161,4 +161,81 @@ export async function deleteAuction(id: string, sellerId: string, isAdmin: boole
 
 export async function getCategories() {
   return prisma.category.findMany({ orderBy: { name: 'asc' } });
+}
+
+const REVIEW_ACTION_TO_STATUS: Record<ReviewAuctionInput['action'], AuctionReviewStatus> = {
+  APPROVE: 'APPROVED',
+  REJECT: 'REJECTED',
+  REQUEST_CHANGES: 'CHANGES_REQUESTED',
+};
+
+export async function getReviewQueue(params: { page?: number; limit?: number }) {
+  const page = params.page && params.page > 0 ? params.page : 1;
+  const limit = params.limit && params.limit > 0 ? params.limit : 20;
+  const skip = (page - 1) * limit;
+
+  const where = { reviewStatus: 'PENDING_REVIEW' as const };
+
+  const [items, total] = await Promise.all([
+    prisma.auction.findMany({
+      where,
+      include: {
+        seller: { select: { id: true, username: true, email: true } },
+        category: { select: { id: true, name: true, slug: true } },
+        reviewedBy: { select: { id: true, username: true, email: true } },
+        _count: { select: { bids: true } },
+      },
+      orderBy: { createdAt: 'asc' },
+      skip,
+      take: limit,
+    }),
+    prisma.auction.count({ where }),
+  ]);
+
+  return {
+    data: items.map((item) =>
+      formatAuction(item as Record<string, unknown> & { _count?: { bids: number } }),
+    ),
+    total,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit),
+  };
+}
+
+export async function reviewAuction(
+  auctionId: string,
+  reviewerId: string,
+  input: ReviewAuctionInput,
+) {
+  const auction = await prisma.auction.findUnique({
+    where: { id: auctionId },
+    select: { id: true, reviewStatus: true },
+  });
+
+  if (!auction) {
+    throw new AppError('Auction not found', 404);
+  }
+
+  if (auction.reviewStatus !== 'PENDING_REVIEW') {
+    throw new AppError('Auction này đã được xử lý duyệt trước đó', 400);
+  }
+
+  const updated = await prisma.auction.update({
+    where: { id: auctionId },
+    data: {
+      reviewStatus: REVIEW_ACTION_TO_STATUS[input.action],
+      reviewNote: input.note?.trim() ? input.note.trim() : null,
+      reviewedAt: new Date(),
+      reviewedById: reviewerId,
+    },
+    include: {
+      seller: { select: { id: true, username: true, avatar: true } },
+      category: { select: { id: true, name: true, slug: true } },
+      reviewedBy: { select: { id: true, username: true, email: true } },
+      _count: { select: { bids: true } },
+    },
+  });
+
+  return formatAuction(updated as Record<string, unknown> & { _count?: { bids: number } });
 }
