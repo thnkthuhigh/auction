@@ -14,7 +14,7 @@ export function useAuth() {
     onSuccess: (data) => {
       setAuth(data.user, data.tokens);
       toast.success(`Chào mừng ${data.user.username}!`);
-      navigate('/');
+      navigate(data.user.role === 'ADMIN' ? '/admin' : '/');
     },
     onError: (error: { response?: { data?: { message?: string } } }) => {
       toast.error(error.response?.data?.message || 'Đăng nhập thất bại');
@@ -26,7 +26,7 @@ export function useAuth() {
     onSuccess: (data) => {
       setAuth(data.user, data.tokens);
       toast.success('Đăng ký thành công!');
-      navigate('/');
+      navigate(data.user.role === 'ADMIN' ? '/admin' : '/');
     },
     onError: (error: { response?: { data?: { message?: string } } }) => {
       toast.error(error.response?.data?.message || 'Đăng ký thất bại');
