@@ -485,11 +485,31 @@ cd auction
 npm install      # Cài tất cả workspace packages
 ```
 
-### 2. Cấu hình Environment
+### 2. Cau hinh Environment
+
+Quan trong: 3 lenh tao file `.env` ben duoi deu chay tai thu muc goc du an `auction` (noi co file `package.json` root).
+
+#### Windows PowerShell
+
+```powershell
+# Neu vua clone xong
+git clone <repo-url>
+cd auction
+
+# Neu dang o sai thu muc thi chay:
+# cd D:\CODE\auction
+
+Copy-Item .env.example .env
+Copy-Item backend/.env.example backend/.env
+Copy-Item frontend/.env.example frontend/.env
+```
+
+#### macOS/Linux (bash/zsh)
 
 ```bash
 cp .env.example .env
-# Chỉnh sửa .env theo môi trường của bạn
+cp backend/.env.example backend/.env
+cp frontend/.env.example frontend/.env
 ```
 
 ### 3. Khởi động Database
@@ -498,12 +518,13 @@ cp .env.example .env
 docker-compose up -d postgres redis
 ```
 
-### 4. Chạy migrations
+### 4. Chay migrations va seed
+
+Chay tai root `auction` (khong can `cd backend`):
 
 ```bash
-cd backend
-npx prisma migrate dev
-npx prisma db seed
+npm run prisma:migrate
+npm run prisma:seed
 ```
 
 ### 5. Chạy Development

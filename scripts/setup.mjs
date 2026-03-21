@@ -171,9 +171,9 @@ ${BOLD}Quick start:${RESET}
   ${CYAN}npm run dev:frontend${RESET}  → frontend only (port 5173)
 
 ${BOLD}Demo accounts (after seed):${RESET}
-  Admin  : admin@auction.com   / password123
-  Seller : seller@auction.com  / password123
-  Buyer  : buyer@auction.com   / password123
+  Admin  : admin@auction.com   / admin123456
+  Seller : seller@auction.com  / user123456
+  Buyer  : buyer@auction.com   / user123456
 
 ${BOLD}Useful commands:${RESET}
   ${CYAN}npm run lint${RESET}           → check linting
