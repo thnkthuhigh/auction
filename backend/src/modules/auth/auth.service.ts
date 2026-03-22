@@ -6,6 +6,7 @@ import { AppError } from '../../middlewares/error.middleware';
 import type { RegisterInput, LoginInput } from './auth.schema';
 
 const SALT_ROUNDS = 12;
+const DUMMY_PASSWORD_HASH = '$2a$12$C6UzMDM.H6dfI/f/IKcEeO5I7iV6czS4QhIwTZYBFvTo95z0yn7G6';
 
 function generateTokens(userId: string) {
   const accessExpiry = (process.env.JWT_EXPIRES_IN || '15m') as jwt.SignOptions['expiresIn'];
@@ -98,16 +99,23 @@ export async function register(input: RegisterInput) {
 }
 
 export async function login(input: LoginInput) {
-  const email = input.email.trim().toLowerCase();
+  const normalizedEmail = input.email.trim().toLowerCase();
 
-  const user = await prisma.user.findUnique({
-    where: { email },
+  const user = await prisma.user.findFirst({
+    where: {
+      email: {
+        equals: normalizedEmail,
+        mode: 'insensitive',
+      },
+    },
   });
 
-  if (!user) throw new AppError('Email hoac mat khau khong dung', 401);
+  const passwordHash = user?.password ?? DUMMY_PASSWORD_HASH;
+  const isValidPassword = await bcrypt.compare(input.password, passwordHash);
 
-  const isValid = await bcrypt.compare(input.password, user.password);
-  if (!isValid) throw new AppError('Email hoac mat khau khong dung', 401);
+  if (!user || !isValidPassword) {
+    throw new AppError('Email hoac mat khau khong dung', 401);
+  }
 
   const { password: _pw, ...safeUser } = user;
   const tokens = generateTokens(user.id);
