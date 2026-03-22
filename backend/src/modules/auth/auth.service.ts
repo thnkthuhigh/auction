@@ -7,11 +7,15 @@ import type { RegisterInput, LoginInput } from './auth.schema';
 const SALT_ROUNDS = 12;
 
 function generateTokens(userId: string) {
+  const accessExpiry = (process.env.JWT_EXPIRES_IN || '15m') as jwt.SignOptions['expiresIn'];
+  const refreshExpiry = (process.env.JWT_REFRESH_EXPIRES_IN ||
+    '7d') as jwt.SignOptions['expiresIn'];
+
   const accessToken = jwt.sign({ userId }, process.env.JWT_SECRET!, {
-    expiresIn: process.env.JWT_EXPIRES_IN || '15m',
+    expiresIn: accessExpiry,
   });
   const refreshToken = jwt.sign({ userId }, process.env.JWT_REFRESH_SECRET!, {
-    expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
+    expiresIn: refreshExpiry,
   });
   return { accessToken, refreshToken };
 }

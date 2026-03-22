@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from 'express';
+import { type Request, type Response, type NextFunction } from 'express';
 import { ZodError } from 'zod';
 
 export function errorMiddleware(
@@ -29,7 +29,7 @@ export function errorMiddleware(
 
 export class AppError extends Error {
   constructor(
-    public message: string,
+    public override message: string,
     public statusCode: number = 400,
   ) {
     super(message);
