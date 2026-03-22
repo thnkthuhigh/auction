@@ -9,6 +9,13 @@ import type {
 
 export type ReviewAuctionAction = 'APPROVE' | 'REJECT' | 'REQUEST_CHANGES';
 
+export interface CreateAuctionSessionPayload {
+  startTime: string;
+  endTime: string;
+  startPrice: number;
+  minBidStep: number;
+}
+
 export interface AdminReviewQueueItem {
   id: string;
   title: string;
@@ -94,6 +101,14 @@ export const auctionService = {
   ) => {
     const res = await api.patch<{ data: AdminReviewQueueItem }>(
       `/auctions/${auctionId}/review`,
+      payload,
+    );
+    return res.data.data;
+  },
+
+  createAuctionSession: async (auctionId: string, payload: CreateAuctionSessionPayload) => {
+    const res = await api.patch<{ data: AdminReviewQueueItem }>(
+      `/auctions/${auctionId}/session`,
       payload,
     );
     return res.data.data;

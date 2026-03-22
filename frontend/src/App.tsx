@@ -12,6 +12,7 @@ import DashboardPage from '@/pages/DashboardPage';
 import ProfilePage from '@/pages/profile/ProfilePage';
 import AdminHomePage from '@/pages/admin/AdminHomePage';
 import AdminReviewQueuePage from '@/pages/admin/AdminReviewQueuePage';
+import AdminSessionConfigPage from '@/pages/admin/AdminSessionConfigPage';
 
 // Pages – TV5
 import AuctionListPage from '@/pages/auction/AuctionListPage';
@@ -50,6 +51,7 @@ export default function App() {
             <Route element={<AdminLayout />}>
               <Route path="/admin" element={<AdminHomePage />} />
               <Route path="/admin/reviews" element={<AdminReviewQueuePage />} />
+              <Route path="/admin/sessions" element={<AdminSessionConfigPage />} />
             </Route>
           </Route>
         </Route>
