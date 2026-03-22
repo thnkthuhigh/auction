@@ -1,10 +1,12 @@
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Link } from 'react-router-dom';
 import { Gavel } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
-import type { RegisterDTO } from '@auction/shared';
+import type { ApiResponse, RegisterDTO } from '@auction/shared';
+import type { AxiosError } from 'axios';
 
 const schema = z.object({
   email: z.string().email('Email không hợp lệ'),
@@ -20,14 +22,53 @@ const schema = z.object({
  * TV4 phụ trách trang này
  */
 export default function RegisterPage() {
-  const { register: registerUser, isRegistering } = useAuth();
+  const { registerAsync, isRegistering } = useAuth();
+  const [submitError, setSubmitError] = useState('');
+  const inputClassName =
+    'w-full px-3 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed';
 
   const {
     register,
     handleSubmit,
+    setError,
+    clearErrors,
     formState: { errors },
   } = useForm<RegisterDTO>({
     resolver: zodResolver(schema),
+    defaultValues: {
+      email: '',
+      username: '',
+      password: '',
+    },
+  });
+
+  const onSubmit = handleSubmit(async (data) => {
+    setSubmitError('');
+    clearErrors(['email', 'username']);
+
+    try {
+      await registerAsync({
+        email: data.email.trim(),
+        username: data.username.trim(),
+        password: data.password,
+      });
+    } catch (error) {
+      const apiError = error as AxiosError<ApiResponse>;
+      const message = apiError.response?.data?.message || 'Đăng ký thất bại';
+      const normalizedMessage = message.toLowerCase();
+
+      if (normalizedMessage.includes('email')) {
+        setError('email', { type: 'server', message });
+        return;
+      }
+
+      if (normalizedMessage.includes('username')) {
+        setError('username', { type: 'server', message });
+        return;
+      }
+
+      setSubmitError(message);
+    }
   });
 
   return (
@@ -41,25 +82,41 @@ export default function RegisterPage() {
           <p className="text-gray-500 mt-1">Tạo tài khoản AuctionHub</p>
         </div>
 
-        <form onSubmit={handleSubmit((data) => registerUser(data))} className="space-y-4">
+        <form onSubmit={onSubmit} className="space-y-4" noValidate>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+              Email
+            </label>
             <input
-              {...register('email')}
+              {...register('email', {
+                setValueAs: (value: string) => value.trim(),
+              })}
+              id="email"
               type="email"
               placeholder="you@example.com"
-              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              autoComplete="email"
+              aria-invalid={Boolean(errors.email)}
+              disabled={isRegistering}
+              className={`${inputClassName} ${errors.email ? 'border-red-400 focus:ring-red-500' : 'border-gray-300'}`}
             />
             {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>}
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
+            <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-1">
+              Username
+            </label>
             <input
-              {...register('username')}
+              {...register('username', {
+                setValueAs: (value: string) => value.trim(),
+              })}
+              id="username"
               type="text"
               placeholder="username"
-              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              autoComplete="username"
+              aria-invalid={Boolean(errors.username)}
+              disabled={isRegistering}
+              className={`${inputClassName} ${errors.username ? 'border-red-400 focus:ring-red-500' : 'border-gray-300'}`}
             />
             {errors.username && (
               <p className="text-red-500 text-xs mt-1">{errors.username.message}</p>
@@ -67,17 +124,25 @@ export default function RegisterPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Mật khẩu</label>
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+              Mật khẩu
+            </label>
             <input
               {...register('password')}
+              id="password"
               type="password"
               placeholder="Tối thiểu 8 ký tự"
-              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              autoComplete="new-password"
+              aria-invalid={Boolean(errors.password)}
+              disabled={isRegistering}
+              className={`${inputClassName} ${errors.password ? 'border-red-400 focus:ring-red-500' : 'border-gray-300'}`}
             />
             {errors.password && (
               <p className="text-red-500 text-xs mt-1">{errors.password.message}</p>
             )}
           </div>
+
+          {submitError && <p className="text-red-500 text-sm">{submitError}</p>}
 
           <button
             type="submit"

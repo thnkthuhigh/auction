@@ -1,9 +1,16 @@
 import { useMutation } from '@tanstack/react-query';
+import type { AxiosError } from 'axios';
 import { authService } from '@/services/auth.service';
 import { useAuthStore } from '@/store/auth.store';
 import { disconnectSocket } from '@/services/socket.service';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
+import type { ApiResponse } from '@auction/shared';
+
+function getApiErrorMessage(error: unknown, fallback: string) {
+  const axiosError = error as AxiosError<ApiResponse>;
+  return axiosError.response?.data?.message || fallback;
+}
 
 export function useAuth() {
   const { setAuth, clearAuth, user, isAuthenticated } = useAuthStore();
@@ -16,8 +23,8 @@ export function useAuth() {
       toast.success(`Chào mừng ${data.user.username}!`);
       navigate('/');
     },
-    onError: (error: { response?: { data?: { message?: string } } }) => {
-      toast.error(error.response?.data?.message || 'Đăng nhập thất bại');
+    onError: (error: unknown) => {
+      toast.error(getApiErrorMessage(error, 'Đăng nhập thất bại'));
     },
   });
 
@@ -28,8 +35,8 @@ export function useAuth() {
       toast.success('Đăng ký thành công!');
       navigate('/');
     },
-    onError: (error: { response?: { data?: { message?: string } } }) => {
-      toast.error(error.response?.data?.message || 'Đăng ký thất bại');
+    onError: (error: unknown) => {
+      toast.error(getApiErrorMessage(error, 'Đăng ký thất bại'));
     },
   });
 
@@ -46,6 +53,7 @@ export function useAuth() {
     isAuthenticated,
     login: loginMutation.mutate,
     register: registerMutation.mutate,
+    registerAsync: registerMutation.mutateAsync,
     logout,
     isLoggingIn: loginMutation.isPending,
     isRegistering: registerMutation.isPending,
