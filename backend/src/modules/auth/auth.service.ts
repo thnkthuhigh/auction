@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import type { SignOptions } from 'jsonwebtoken';
 import { prisma } from '../../config/database';
 import { AppError } from '../../middlewares/error.middleware';
 import type { RegisterInput, LoginInput } from './auth.schema';
@@ -8,16 +9,25 @@ import type { RegisterInput, LoginInput } from './auth.schema';
 const SALT_ROUNDS = 12;
 const DUMMY_PASSWORD_HASH = '$2a$12$C6UzMDM.H6dfI/f/IKcEeO5I7iV6czS4QhIwTZYBFvTo95z0yn7G6';
 
-function generateTokens(userId: string) {
-  const accessExpiry = (process.env.JWT_EXPIRES_IN || '15m') as jwt.SignOptions['expiresIn'];
-  const refreshExpiry = (process.env.JWT_REFRESH_EXPIRES_IN ||
-    '7d') as jwt.SignOptions['expiresIn'];
+function requireEnv(name: 'JWT_SECRET' | 'JWT_REFRESH_SECRET'): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new AppError(`${name} is not configured`, 500);
+  }
+  return value;
+}
 
-  const accessToken = jwt.sign({ userId }, process.env.JWT_SECRET!, {
-    expiresIn: accessExpiry,
+function generateTokens(userId: string) {
+  const accessExpiresIn =
+    (process.env.JWT_EXPIRES_IN as SignOptions['expiresIn'] | undefined) ?? '15m';
+  const refreshExpiresIn =
+    (process.env.JWT_REFRESH_EXPIRES_IN as SignOptions['expiresIn'] | undefined) ?? '7d';
+
+  const accessToken = jwt.sign({ userId }, requireEnv('JWT_SECRET'), {
+    expiresIn: accessExpiresIn,
   });
-  const refreshToken = jwt.sign({ userId }, process.env.JWT_REFRESH_SECRET!, {
-    expiresIn: refreshExpiry,
+  const refreshToken = jwt.sign({ userId }, requireEnv('JWT_REFRESH_SECRET'), {
+    expiresIn: refreshExpiresIn,
   });
   return { accessToken, refreshToken };
 }
@@ -128,7 +138,9 @@ export async function login(input: LoginInput) {
 
 export async function refreshAccessToken(refreshToken: string) {
   try {
-    const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET!) as { userId: string };
+    const decoded = jwt.verify(refreshToken, requireEnv('JWT_REFRESH_SECRET')) as {
+      userId: string;
+    };
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },
     });

@@ -4,7 +4,6 @@
     "module": "commonjs",
     "lib": ["ES2020"],
     "outDir": "./dist",
-    "rootDir": "..",
     "strict": true,
     "noUncheckedIndexedAccess": false,
     "noImplicitOverride": true,
@@ -21,6 +20,6 @@
       "@auction/shared/*": ["../packages/shared/src/*"]
     }
   },
-  "include": ["src"],
+  "include": ["src", "../packages/shared/src"],
   "exclude": ["node_modules", "dist"]
 }
