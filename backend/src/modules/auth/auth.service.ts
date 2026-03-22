@@ -1,17 +1,31 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import type { SignOptions } from 'jsonwebtoken';
 import { prisma } from '../../config/database';
 import { AppError } from '../../middlewares/error.middleware';
 import type { RegisterInput, LoginInput } from './auth.schema';
 
 const SALT_ROUNDS = 12;
 
+function requireEnv(name: 'JWT_SECRET' | 'JWT_REFRESH_SECRET'): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new AppError(`${name} is not configured`, 500);
+  }
+  return value;
+}
+
 function generateTokens(userId: string) {
-  const accessToken = jwt.sign({ userId }, process.env.JWT_SECRET!, {
-    expiresIn: process.env.JWT_EXPIRES_IN || '15m',
+  const accessExpiresIn =
+    (process.env.JWT_EXPIRES_IN as SignOptions['expiresIn'] | undefined) ?? '15m';
+  const refreshExpiresIn =
+    (process.env.JWT_REFRESH_EXPIRES_IN as SignOptions['expiresIn'] | undefined) ?? '7d';
+
+  const accessToken = jwt.sign({ userId }, requireEnv('JWT_SECRET'), {
+    expiresIn: accessExpiresIn,
   });
-  const refreshToken = jwt.sign({ userId }, process.env.JWT_REFRESH_SECRET!, {
-    expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
+  const refreshToken = jwt.sign({ userId }, requireEnv('JWT_REFRESH_SECRET'), {
+    expiresIn: refreshExpiresIn,
   });
   return { accessToken, refreshToken };
 }
@@ -72,7 +86,9 @@ export async function login(input: LoginInput) {
 
 export async function refreshAccessToken(refreshToken: string) {
   try {
-    const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET!) as { userId: string };
+    const decoded = jwt.verify(refreshToken, requireEnv('JWT_REFRESH_SECRET')) as {
+      userId: string;
+    };
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },
     });

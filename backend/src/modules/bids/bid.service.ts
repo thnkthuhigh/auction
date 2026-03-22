@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client';
 import { prisma } from '../../config/database';
 import { AppError } from '../../middlewares/error.middleware';
 import { redis, REDIS_KEYS } from '../../config/redis';
@@ -24,7 +25,7 @@ export async function placeBid(bidderId: string, auctionId: string, amount: numb
   }
 
   // Use DB transaction to prevent race conditions
-  const [bid, updatedAuction] = await prisma.$transaction(async (tx) => {
+  const [bid, updatedAuction] = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const newBid = await tx.bid.create({
       data: { amount, bidderId, auctionId },
       include: {
@@ -37,7 +38,7 @@ export async function placeBid(bidderId: string, auctionId: string, amount: numb
       data: { currentPrice: amount },
     });
 
-    return [newBid, updated];
+    return [newBid, updated] as const;
   });
 
   // Update Redis cache
@@ -94,7 +95,7 @@ export async function getBidsByAuction(auctionId: string, page = 1, limit = 20) 
   ]);
 
   return {
-    data: bids.map((b) => ({
+    data: bids.map((b: (typeof bids)[number]) => ({
       id: b.id,
       amount: Number(b.amount),
       createdAt: b.createdAt.toISOString(),

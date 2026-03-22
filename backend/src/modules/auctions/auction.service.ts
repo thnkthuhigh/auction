@@ -1,4 +1,4 @@
-import { AuctionStatus } from '@prisma/client';
+import type { AuctionStatus } from '@auction/shared';
 import { prisma } from '../../config/database';
 import { AppError } from '../../middlewares/error.middleware';
 import { redis, REDIS_KEYS } from '../../config/redis';
