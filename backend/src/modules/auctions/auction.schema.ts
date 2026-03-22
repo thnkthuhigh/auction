@@ -34,6 +34,14 @@ export const reviewAuctionSchema = z.object({
   note: z.string().max(1000).optional(),
 });
 
+export const createAuctionSessionSchema = z.object({
+  startTime: z.string().datetime('startTime must be ISO datetime'),
+  endTime: z.string().datetime('endTime must be ISO datetime'),
+  startPrice: z.number().min(1000, 'startPrice must be at least 1,000'),
+  minBidStep: z.number().min(1000, 'minBidStep must be at least 1,000'),
+});
+
 export type CreateAuctionInput = z.infer<typeof createAuctionSchema>;
 export type UpdateAuctionInput = z.infer<typeof updateAuctionSchema>;
 export type ReviewAuctionInput = z.infer<typeof reviewAuctionSchema>;
+export type CreateAuctionSessionInput = z.infer<typeof createAuctionSessionSchema>;

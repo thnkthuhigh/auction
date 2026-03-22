@@ -2,7 +2,12 @@ import type { AuctionReviewStatus, AuctionStatus } from '@prisma/client';
 import { prisma } from '../../config/database';
 import { AppError } from '../../middlewares/error.middleware';
 import { redis, REDIS_KEYS } from '../../config/redis';
-import type { CreateAuctionInput, ReviewAuctionInput, UpdateAuctionInput } from './auction.schema';
+import type {
+  CreateAuctionInput,
+  CreateAuctionSessionInput,
+  ReviewAuctionInput,
+  UpdateAuctionInput,
+} from './auction.schema';
 
 function formatAuction(a: Record<string, unknown> & { _count?: { bids: number } }) {
   return {
@@ -123,6 +128,63 @@ export async function createAuction(sellerId: string, input: CreateAuctionInput)
   });
 
   return formatAuction(auction as Record<string, unknown> & { _count?: { bids: number } });
+}
+
+export async function createAuctionSession(auctionId: string, input: CreateAuctionSessionInput) {
+  const startTime = new Date(input.startTime);
+  const endTime = new Date(input.endTime);
+
+  if (startTime >= endTime) {
+    throw new AppError('endTime must be after startTime', 400);
+  }
+
+  if (endTime <= new Date()) {
+    throw new AppError('endTime must be in the future', 400);
+  }
+
+  const auction = await prisma.auction.findUnique({
+    where: { id: auctionId },
+    select: { id: true, status: true, reviewStatus: true },
+  });
+
+  if (!auction) {
+    throw new AppError('Auction not found', 404);
+  }
+
+  if (auction.reviewStatus !== 'APPROVED') {
+    throw new AppError('Only approved products can have auction sessions', 400);
+  }
+
+  if (auction.status === 'ACTIVE') {
+    throw new AppError('Cannot create or update session for active auction', 400);
+  }
+
+  if (auction.status === 'ENDED') {
+    throw new AppError('Cannot create or update session for ended auction', 400);
+  }
+
+  const updated = await prisma.auction.update({
+    where: { id: auctionId },
+    data: {
+      startTime,
+      endTime,
+      startPrice: input.startPrice,
+      currentPrice: input.startPrice,
+      minBidStep: input.minBidStep,
+      status: 'PENDING',
+    },
+    include: {
+      seller: { select: { id: true, username: true, avatar: true } },
+      category: { select: { id: true, name: true, slug: true } },
+      reviewedBy: { select: { id: true, username: true, email: true } },
+      _count: { select: { bids: true } },
+    },
+  });
+
+  await redis.set(REDIS_KEYS.auctionCurrentPrice(auctionId), input.startPrice);
+  await redis.del(REDIS_KEYS.auctionBidCount(auctionId));
+
+  return formatAuction(updated as Record<string, unknown> & { _count?: { bids: number } });
 }
 
 export async function updateAuction(id: string, sellerId: string, input: UpdateAuctionInput) {

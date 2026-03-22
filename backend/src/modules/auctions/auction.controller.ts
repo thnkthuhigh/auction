@@ -89,3 +89,16 @@ export async function reviewAuction(req: AuthenticatedRequest, res: Response, ne
     next(error);
   }
 }
+
+export async function createAuctionSession(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const data = await auctionService.createAuctionSession(req.params.id, req.body);
+    res.json({ success: true, data, message: 'Tao phien dau gia thanh cong' });
+  } catch (error) {
+    next(error);
+  }
+}
