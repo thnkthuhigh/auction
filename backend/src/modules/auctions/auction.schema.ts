@@ -19,5 +19,11 @@ export const updateAuctionSchema = z.object({
   endTime: z.string().datetime().optional(),
 });
 
+export const reviewAuctionSchema = z.object({
+  action: z.enum(['APPROVE', 'REJECT', 'REQUEST_CHANGES']),
+  note: z.string().max(1000).optional(),
+});
+
 export type CreateAuctionInput = z.infer<typeof createAuctionSchema>;
 export type UpdateAuctionInput = z.infer<typeof updateAuctionSchema>;
+export type ReviewAuctionInput = z.infer<typeof reviewAuctionSchema>;

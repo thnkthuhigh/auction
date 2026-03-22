@@ -19,12 +19,12 @@ export function startAuctionScheduler() {
 
     if (toStart.length > 0) {
       await prisma.auction.updateMany({
-        where: { id: { in: toStart.map((a) => a.id) } },
+        where: { id: { in: toStart.map((a: (typeof toStart)[number]) => a.id) } },
         data: { status: 'ACTIVE' },
       });
 
       const io = getIO();
-      toStart.forEach((auction) => {
+      toStart.forEach((auction: (typeof toStart)[number]) => {
         io.to(`auction:${auction.id}`).emit('auction:started', {
           auctionId: auction.id,
           endsAt: auction.endTime.toISOString(),
