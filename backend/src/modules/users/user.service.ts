@@ -88,7 +88,7 @@ export async function getMyBids(userId: string, page = 1, limit = 20) {
   ]);
 
   return {
-    data: bids.map((b) => ({ ...b, amount: Number(b.amount) })),
+    data: bids.map((b: (typeof bids)[number]) => ({ ...b, amount: Number(b.amount) })),
     total,
     page,
     limit,
@@ -110,7 +110,7 @@ export async function getMyAuctions(userId: string, page = 1, limit = 20) {
   ]);
 
   return {
-    data: auctions.map((a) => ({
+    data: auctions.map((a: (typeof auctions)[number]) => ({
       ...a,
       startPrice: Number(a.startPrice),
       currentPrice: Number(a.currentPrice),
