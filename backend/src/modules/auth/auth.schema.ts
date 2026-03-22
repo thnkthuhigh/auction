@@ -11,8 +11,8 @@ export const registerSchema = z.object({
 });
 
 export const loginSchema = z.object({
-  email: z.string().email('Email không hợp lệ'),
-  password: z.string().min(1, 'Mật khẩu không được trống'),
+  email: z.string().trim().toLowerCase().email('Email không hợp lệ'),
+  password: z.string().trim().min(1, 'Mật khẩu không được trống'),
 });
 
 export const refreshTokenSchema = z.object({
