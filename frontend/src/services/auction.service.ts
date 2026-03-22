@@ -7,6 +7,47 @@ import type {
   Category,
 } from '@auction/shared';
 
+export type ReviewAuctionAction = 'APPROVE' | 'REJECT' | 'REQUEST_CHANGES';
+
+export interface CreateAuctionSessionPayload {
+  startTime: string;
+  endTime: string;
+  startPrice: number;
+  minBidStep: number;
+}
+
+export interface AdminReviewQueueItem {
+  id: string;
+  title: string;
+  description: string;
+  imageUrl?: string | null;
+  startPrice: number;
+  currentPrice: number;
+  minBidStep: number;
+  status: 'PENDING' | 'ACTIVE' | 'ENDED' | 'CANCELLED';
+  reviewStatus: 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED' | 'CHANGES_REQUESTED';
+  reviewNote?: string | null;
+  reviewedAt?: string | null;
+  reviewedById?: string | null;
+  startTime: string;
+  endTime: string;
+  createdAt: string;
+  sellerId: string;
+  categoryId: string;
+  totalBids: number;
+  seller?: {
+    id: string;
+    username: string;
+    email?: string;
+    avatar?: string | null;
+  };
+  category?: {
+    id: string;
+    name: string;
+    slug: string;
+  };
+}
+
 export const auctionService = {
   getAuctions: async (filters: AuctionFilters = {}): Promise<PaginatedResponse<Auction>> => {
     const res = await api.get('/auctions', { params: filters });
@@ -41,6 +82,35 @@ export const auctionService = {
 
   placeBid: async (auctionId: string, amount: number) => {
     const res = await api.post('/bids', { auctionId, amount });
+    return res.data.data;
+  },
+
+  getAdminReviewQueue: async (params: { page?: number; limit?: number } = {}) => {
+    const res = await api.get<PaginatedResponse<AdminReviewQueueItem>>(
+      '/auctions/admin/review-queue',
+      {
+        params,
+      },
+    );
+    return res.data;
+  },
+
+  reviewAuction: async (
+    auctionId: string,
+    payload: { action: ReviewAuctionAction; note?: string },
+  ) => {
+    const res = await api.patch<{ data: AdminReviewQueueItem }>(
+      `/auctions/${auctionId}/review`,
+      payload,
+    );
+    return res.data.data;
+  },
+
+  createAuctionSession: async (auctionId: string, payload: CreateAuctionSessionPayload) => {
+    const res = await api.patch<{ data: AdminReviewQueueItem }>(
+      `/auctions/${auctionId}/session`,
+      payload,
+    );
     return res.data.data;
   },
 };

@@ -1,18 +1,27 @@
-import { z } from 'zod';
+﻿import { z } from 'zod';
 
 export const registerSchema = z.object({
-  email: z.string().email('Email không hợp lệ'),
+  email: z
+    .string()
+    .trim()
+    .email('Email khong hop le')
+    .transform((value) => value.toLowerCase()),
   username: z
     .string()
-    .min(3, 'Username tối thiểu 3 ký tự')
-    .max(20, 'Username tối đa 20 ký tự')
-    .regex(/^[a-zA-Z0-9_]+$/, 'Username chỉ chứa chữ, số và dấu gạch dưới'),
-  password: z.string().min(8, 'Mật khẩu tối thiểu 8 ký tự'),
+    .trim()
+    .min(3, 'Username toi thieu 3 ky tu')
+    .max(20, 'Username toi da 20 ky tu')
+    .regex(/^[a-zA-Z0-9_]+$/, 'Username chi chua chu, so va dau gach duoi'),
+  password: z.string().min(8, 'Mat khau toi thieu 8 ky tu'),
 });
 
 export const loginSchema = z.object({
-  email: z.string().email('Email không hợp lệ'),
-  password: z.string().min(1, 'Mật khẩu không được trống'),
+  email: z
+    .string()
+    .trim()
+    .email('Email khong hop le')
+    .transform((value) => value.toLowerCase()),
+  password: z.string().min(1, 'Mat khau khong duoc trong'),
 });
 
 export const refreshTokenSchema = z.object({

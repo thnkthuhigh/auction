@@ -1,11 +1,11 @@
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { auctionService } from '@/services/auction.service';
 import toast from 'react-hot-toast';
-import { PlusCircle } from 'lucide-react';
+import { PlusCircle, ImageIcon } from 'lucide-react';
 import type { CreateAuctionDTO } from '@auction/shared';
 
 const schema = z.object({
@@ -34,10 +34,14 @@ export default function CreateAuctionPage() {
   const {
     register,
     handleSubmit,
+    control,
     formState: { errors },
   } = useForm<CreateAuctionDTO>({
     resolver: zodResolver(schema),
   });
+
+  const imageUrlValue = useWatch({ control, name: 'imageUrl' });
+  const minDatetime = new Date().toISOString().slice(0, 16);
 
   const mutation = useMutation({
     mutationFn: auctionService.createAuction,
@@ -107,6 +111,21 @@ export default function CreateAuctionPage() {
             {errors.imageUrl && (
               <p className="text-red-500 text-xs mt-1">{errors.imageUrl.message}</p>
             )}
+            {imageUrlValue && !errors.imageUrl ? (
+              <img
+                src={imageUrlValue}
+                alt="Xem trước ảnh sản phẩm"
+                className="mt-2 w-full h-40 object-cover rounded-lg border border-gray-200"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = 'none';
+                }}
+              />
+            ) : (
+              <div className="mt-2 w-full h-40 bg-gray-50 rounded-lg border border-dashed border-gray-300 flex flex-col items-center justify-center text-gray-400">
+                <ImageIcon className="h-8 w-8 mb-1" />
+                <span className="text-xs">Nhập URL để xem trước ảnh</span>
+              </div>
+            )}
           </div>
 
           {/* Category */}
@@ -158,6 +177,9 @@ export default function CreateAuctionPage() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="1000"
               />
+              {errors.minBidStep && (
+                <p className="text-red-500 text-xs mt-1">{errors.minBidStep.message}</p>
+              )}
             </div>
           </div>
 
@@ -170,6 +192,7 @@ export default function CreateAuctionPage() {
               <input
                 {...register('startTime')}
                 type="datetime-local"
+                min={minDatetime}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
               {errors.startTime && (
@@ -183,6 +206,7 @@ export default function CreateAuctionPage() {
               <input
                 {...register('endTime')}
                 type="datetime-local"
+                min={minDatetime}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
               {errors.endTime && (

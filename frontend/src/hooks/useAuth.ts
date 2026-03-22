@@ -21,7 +21,7 @@ export function useAuth() {
     onSuccess: (data) => {
       setAuth(data.user, data.tokens);
       toast.success(`Chào mừng ${data.user.username}!`);
-      navigate('/');
+      navigate(data.user.role === 'ADMIN' ? '/admin' : '/');
     },
     onError: (error: unknown) => {
       toast.error(getApiErrorMessage(error, 'Đăng nhập thất bại'));
@@ -33,7 +33,7 @@ export function useAuth() {
     onSuccess: (data) => {
       setAuth(data.user, data.tokens);
       toast.success('Đăng ký thành công!');
-      navigate('/');
+      navigate(data.user.role === 'ADMIN' ? '/admin' : '/');
     },
     onError: (error: unknown) => {
       toast.error(getApiErrorMessage(error, 'Đăng ký thất bại'));

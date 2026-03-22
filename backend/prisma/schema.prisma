@@ -16,10 +16,17 @@ enum Role {
 }
 
 enum AuctionStatus {
-  PENDING    // Chưa bắt đầu
-  ACTIVE     // Đang diễn ra
-  ENDED      // Đã kết thúc
-  CANCELLED  // Đã huỷ
+  PENDING // Chưa bắt đầu
+  ACTIVE // Đang diễn ra
+  ENDED // Đã kết thúc
+  CANCELLED // Đã huỷ
+}
+
+enum AuctionReviewStatus {
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+  CHANGES_REQUESTED
 }
 
 model User {
@@ -34,9 +41,10 @@ model User {
   updatedAt DateTime @updatedAt
 
   // Relations
-  auctions      Auction[] @relation("AuctionSeller")
-  bids          Bid[]
-  wonAuctions   Auction[] @relation("AuctionWinner")
+  auctions         Auction[] @relation("AuctionSeller")
+  bids             Bid[]
+  wonAuctions      Auction[] @relation("AuctionWinner")
+  reviewedAuctions Auction[] @relation("AuctionReviewedBy")
 
   @@map("users")
 }
@@ -51,29 +59,35 @@ model Category {
 }
 
 model Auction {
-  id           String        @id @default(uuid())
+  id           String              @id @default(uuid())
   title        String
   description  String
   imageUrl     String?
-  startPrice   Decimal       @db.Decimal(18, 2)
-  currentPrice Decimal       @db.Decimal(18, 2)
-  minBidStep   Decimal       @default(1000) @db.Decimal(18, 2)
-  status       AuctionStatus @default(PENDING)
+  startPrice   Decimal             @db.Decimal(18, 2)
+  currentPrice Decimal             @db.Decimal(18, 2)
+  minBidStep   Decimal             @default(1000) @db.Decimal(18, 2)
+  status       AuctionStatus       @default(PENDING)
+  reviewStatus AuctionReviewStatus @default(PENDING_REVIEW)
+  reviewNote   String?
+  reviewedAt   DateTime?
   startTime    DateTime
   endTime      DateTime
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
 
   // Relations
-  seller     User     @relation("AuctionSeller", fields: [sellerId], references: [id])
-  sellerId   String
-  winner     User?    @relation("AuctionWinner", fields: [winnerId], references: [id])
-  winnerId   String?
-  category   Category @relation(fields: [categoryId], references: [id])
-  categoryId String
-  bids       Bid[]
+  seller       User     @relation("AuctionSeller", fields: [sellerId], references: [id])
+  sellerId     String
+  winner       User?    @relation("AuctionWinner", fields: [winnerId], references: [id])
+  winnerId     String?
+  reviewedBy   User?    @relation("AuctionReviewedBy", fields: [reviewedById], references: [id])
+  reviewedById String?
+  category     Category @relation(fields: [categoryId], references: [id])
+  categoryId   String
+  bids         Bid[]
 
   @@index([status])
+  @@index([reviewStatus])
   @@index([endTime])
   @@index([sellerId])
   @@map("auctions")
