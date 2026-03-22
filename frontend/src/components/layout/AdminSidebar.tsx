@@ -1,18 +1,24 @@
 import { Link, NavLink } from 'react-router-dom';
-import { LayoutDashboard, ClipboardCheck, PlusCircle } from 'lucide-react';
+import { LayoutDashboard, ClipboardCheck, CalendarClock, PlusCircle } from 'lucide-react';
 
 const menuItems = [
   {
-    label: 'Tổng quan',
+    label: 'Tong quan',
     path: '/admin',
     icon: LayoutDashboard,
-    description: 'Trang chủ admin',
+    description: 'Trang chu admin',
   },
   {
-    label: 'Duyệt sản phẩm',
+    label: 'Duyet san pham',
     path: '/admin/reviews',
     icon: ClipboardCheck,
     description: 'AS-46',
+  },
+  {
+    label: 'Tao phien dau gia',
+    path: '/admin/sessions',
+    icon: CalendarClock,
+    description: 'AS-48',
   },
 ];
 
@@ -21,7 +27,7 @@ export default function AdminSidebar() {
     <aside className="h-full border-r border-slate-200 bg-white">
       <div className="px-4 py-4 border-b border-slate-100">
         <p className="text-xs uppercase tracking-wide font-semibold text-slate-500">Admin Panel</p>
-        <h2 className="text-lg font-bold text-slate-900 mt-1">Quản trị đấu giá</h2>
+        <h2 className="text-lg font-bold text-slate-900 mt-1">Quan tri dau gia</h2>
       </div>
 
       <nav className="p-3 space-y-1">
@@ -51,14 +57,14 @@ export default function AdminSidebar() {
 
       <div className="px-3 pb-3">
         <p className="text-[11px] uppercase tracking-wide font-semibold text-slate-500 px-3 mb-2">
-          Tiện ích
+          Tien ich
         </p>
         <Link
-          to="/auctions/create"
+          to="/admin/sessions"
           className="flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2.5 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
         >
           <PlusCircle className="h-4 w-4" />
-          Tạo đấu giá
+          Cau hinh phien
         </Link>
       </div>
     </aside>

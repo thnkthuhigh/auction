@@ -2,7 +2,12 @@ import { Router } from 'express';
 import * as auctionController from './auction.controller';
 import { authMiddleware, requireAdmin } from '../../middlewares/auth.middleware';
 import { validate } from '../../middlewares/validate.middleware';
-import { createAuctionSchema, updateAuctionSchema, reviewAuctionSchema } from './auction.schema';
+import {
+  createAuctionSchema,
+  updateAuctionSchema,
+  reviewAuctionSchema,
+  createAuctionSessionSchema,
+} from './auction.schema';
 
 export const auctionRoutes = Router();
 
@@ -23,6 +28,13 @@ auctionRoutes.patch(
   requireAdmin,
   validate(reviewAuctionSchema),
   auctionController.reviewAuction,
+);
+auctionRoutes.patch(
+  '/:id/session',
+  authMiddleware,
+  requireAdmin,
+  validate(createAuctionSessionSchema),
+  auctionController.createAuctionSession,
 );
 
 // Public detail route
