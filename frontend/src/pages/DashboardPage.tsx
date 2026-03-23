@@ -24,7 +24,7 @@ export default function DashboardPage() {
 
   const { data: myAuctions, isLoading: auctionsLoading } = useQuery({
     queryKey: ['my-auctions'],
-    queryFn: () => auctionService.getAuctions({ status: undefined }),
+    queryFn: () => auctionService.getMyAuctions(),
   });
 
   if (profileLoading) {

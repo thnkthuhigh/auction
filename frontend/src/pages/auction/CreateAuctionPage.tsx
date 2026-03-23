@@ -41,10 +41,10 @@ export default function CreateAuctionPage() {
 
   const mutation = useMutation({
     mutationFn: auctionService.createAuction,
-    onSuccess: (auction) => {
-      toast.success('Tạo đấu giá thành công!');
-      queryClient.invalidateQueries({ queryKey: ['auctions'] });
-      navigate(`/auctions/${auction.id}`);
+    onSuccess: () => {
+      toast.success('Gửi sản phẩm thành công! Vui lòng chờ Admin duyệt.');
+      queryClient.invalidateQueries({ queryKey: ['my-auctions'] });
+      navigate('/dashboard');
     },
     onError: (error: { response?: { data?: { message?: string } } }) => {
       toast.error(error.response?.data?.message || 'Tạo đấu giá thất bại');

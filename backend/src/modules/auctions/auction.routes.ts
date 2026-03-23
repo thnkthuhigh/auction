@@ -9,9 +9,10 @@ export const auctionRoutes = Router();
 // Public routes
 auctionRoutes.get('/', auctionController.getAuctions);
 auctionRoutes.get('/categories', auctionController.getCategories);
-auctionRoutes.get('/:id', auctionController.getAuctionById);
 
-// Protected routes
+// Protected routes — must be before /:id to avoid express matching 'my' as an id
+auctionRoutes.get('/my', authMiddleware, auctionController.getMyAuctions);
+auctionRoutes.get('/:id', auctionController.getAuctionById);
 auctionRoutes.post(
   '/',
   authMiddleware,
