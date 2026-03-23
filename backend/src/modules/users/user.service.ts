@@ -77,7 +77,7 @@ export async function getMyBids(userId: string, page = 1, limit = 20) {
       where: { bidderId: userId },
       include: {
         auction: {
-          select: { id: true, title: true, status: true, currentPrice: true },
+          select: { id: true, title: true, status: true, currentPrice: true, winnerId: true },
         },
       },
       orderBy: { createdAt: 'desc' },
