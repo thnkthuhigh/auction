@@ -145,6 +145,42 @@ export async function getAuctions(filters: {
   };
 }
 
+export async function getMyAuctions(
+  sellerId: string,
+  filters: { status?: AuctionStatus; page?: number; limit?: number } = {},
+) {
+  const { status, page = 1, limit = 12 } = filters;
+  const skip = (page - 1) * limit;
+
+  const where = {
+    sellerId,
+    ...(status && { status }),
+  };
+
+  const [auctions, total] = await Promise.all([
+    prisma.auction.findMany({
+      where,
+      include: {
+        seller: { select: { id: true, username: true, avatar: true } },
+        category: { select: { id: true, name: true, slug: true } },
+        _count: { select: { bids: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take: limit,
+    }),
+    prisma.auction.count({ where }),
+  ]);
+
+  return {
+    data: auctions.map(formatAuction),
+    total,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit),
+  };
+}
+
 export async function getAuctionById(id: string) {
   const auction = await prisma.auction.findUnique({
     where: { id },

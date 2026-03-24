@@ -12,6 +12,18 @@ type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerE
 
 export function registerBidHandlers(_io: IO, socket: AppSocket) {
   socket.on('bid:place', async ({ auctionId, amount }) => {
+    if (
+      typeof auctionId !== 'string' ||
+      !auctionId.trim() ||
+      typeof amount !== 'number' ||
+      !Number.isFinite(amount) ||
+      !Number.isInteger(amount) ||
+      amount <= 0
+    ) {
+      socket.emit('error', { message: 'Dữ liệu đặt giá không hợp lệ' });
+      return;
+    }
+
     try {
       await placeBid(socket.data.userId, auctionId, amount);
       // placeBid service already emits 'bid:new' to the room
