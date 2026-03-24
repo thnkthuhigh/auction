@@ -59,6 +59,29 @@ export async function deleteAuction(req: AuthenticatedRequest, res: Response, ne
   }
 }
 
+export async function submitAuction(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  try {
+    const data = await auctionService.submitAuctionForReview(req.params.id, req.user!.id);
+    res.json({ success: true, data, message: 'Gửi duyệt thành công' });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function getMyAuctions(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  try {
+    const { status, page, limit } = req.query as Record<string, string>;
+    const data = await auctionService.getMyAuctions(req.user!.id, {
+      status,
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
+    res.json({ success: true, ...data });
+  } catch (error) {
+    next(error);
+  }
+}
+
 export async function getCategories(_req: AuthenticatedRequest, res: Response, next: NextFunction) {
   try {
     const data = await auctionService.getCategories();

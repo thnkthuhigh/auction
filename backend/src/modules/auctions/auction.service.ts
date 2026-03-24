@@ -361,6 +361,7 @@ export async function getAdminMonitoring(params: AdminMonitoringParams) {
 
   const statusCounts: Record<AuctionStatus, number> = {
     PENDING: 0,
+    REVIEW: 0,
     ACTIVE: 0,
     ENDED: 0,
     CANCELLED: 0,
@@ -426,6 +427,62 @@ export async function deleteAuction(id: string, sellerId: string, isAdmin: boole
   await prisma.auction.delete({ where: { id } });
   await redis.del(REDIS_KEYS.auctionCurrentPrice(id));
   await redis.del(REDIS_KEYS.auctionBidCount(id));
+}
+
+export async function submitAuctionForReview(id: string, sellerId: string) {
+  const auction = await prisma.auction.findUnique({ where: { id } });
+  if (!auction) throw new AppError('Auction not found', 404);
+  if (auction.sellerId !== sellerId) throw new AppError('Forbidden', 403);
+  if (auction.status !== 'PENDING')
+    throw new AppError('Chỉ có thể gửi duyệt đấu giá ở trạng thái bản nháp (PENDING)');
+
+  const updated = await prisma.auction.update({
+    where: { id },
+    data: { status: 'REVIEW' },
+    include: {
+      seller: { select: { id: true, username: true } },
+      category: true,
+      _count: { select: { bids: true } },
+    },
+  });
+
+  return formatAuction(updated as Record<string, unknown> & { _count?: { bids: number } });
+}
+
+export async function getMyAuctions(
+  sellerId: string,
+  filters: { status?: string; page?: number; limit?: number } = {},
+) {
+  const { status, page = 1, limit = 12 } = filters;
+  const skip = (page - 1) * limit;
+
+  const where: Prisma.AuctionWhereInput = {
+    sellerId,
+    ...(status && { status: status as AuctionStatus }),
+  };
+
+  const [auctions, total] = await Promise.all([
+    prisma.auction.findMany({
+      where,
+      include: {
+        seller: { select: { id: true, username: true, avatar: true } },
+        category: { select: { id: true, name: true, slug: true } },
+        _count: { select: { bids: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take: limit,
+    }),
+    prisma.auction.count({ where }),
+  ]);
+
+  return {
+    data: auctions.map((a) => formatAuction(a as Record<string, unknown> & { _count?: { bids: number } })),
+    total,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit),
+  };
 }
 
 export async function getCategories() {
