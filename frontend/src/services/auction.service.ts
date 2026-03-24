@@ -72,6 +72,13 @@ export const auctionService = {
     await api.delete(`/auctions/${id}`);
   },
 
+  getMyAuctions: async (
+    filters: { status?: string; page?: number; limit?: number } = {},
+  ): Promise<PaginatedResponse<Auction>> => {
+    const res = await api.get('/auctions/my', { params: filters });
+    return res.data;
+  },
+
   getCategories: async (): Promise<Category[]> => {
     const res = await api.get('/auctions/categories');
     return res.data.data;

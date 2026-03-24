@@ -26,7 +26,10 @@ export const updateAuctionSchema = z
       }
       return true;
     },
-    { message: 'Thời gian kết thúc phải sau thời gian bắt đầu', path: ['endTime'] },
+    {
+      message: 'Thời gian kết thúc phải sau thời gian bắt đầu',
+      path: ['endTime'],
+    },
   );
 
 export const reviewAuctionSchema = z.object({

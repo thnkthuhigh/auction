@@ -13,17 +13,21 @@ import {
 
 export const auctionRoutes = Router();
 
-// Public routes
+// ===== Public routes =====
 auctionRoutes.get('/', auctionController.getAuctions);
 auctionRoutes.get('/categories', auctionController.getCategories);
 
-// Admin routes
+// ===== Protected routes (đặt trước /:id để tránh match sai) =====
+auctionRoutes.get('/my', authMiddleware, auctionController.getMyAuctions);
+
+// ===== Admin routes =====
 auctionRoutes.get(
   '/admin/review-queue',
   authMiddleware,
   requireAdmin,
   auctionController.getReviewQueue,
 );
+
 auctionRoutes.patch(
   '/:id/review',
   authMiddleware,
@@ -31,6 +35,7 @@ auctionRoutes.patch(
   validate(reviewAuctionSchema),
   auctionController.reviewAuction,
 );
+
 auctionRoutes.patch(
   '/:id/session',
   authMiddleware,
@@ -38,6 +43,7 @@ auctionRoutes.patch(
   validate(createAuctionSessionSchema),
   auctionController.createAuctionSession,
 );
+
 auctionRoutes.patch(
   '/:id/session-config',
   authMiddleware,
@@ -45,6 +51,7 @@ auctionRoutes.patch(
   validate(updateAuctionSessionConfigSchema),
   auctionController.updateAuctionSessionConfig,
 );
+
 auctionRoutes.patch(
   '/:id/session/cancel',
   authMiddleware,
@@ -53,20 +60,22 @@ auctionRoutes.patch(
   auctionController.cancelAuctionSession,
 );
 
-// Public detail route
+// ===== Public detail route =====
 auctionRoutes.get('/:id', auctionController.getAuctionById);
 
-// Protected routes
+// ===== CRUD =====
 auctionRoutes.post(
   '/',
   authMiddleware,
   validate(createAuctionSchema),
   auctionController.createAuction,
 );
+
 auctionRoutes.put(
   '/:id',
   authMiddleware,
   validate(updateAuctionSchema),
   auctionController.updateAuction,
 );
+
 auctionRoutes.delete('/:id', authMiddleware, auctionController.deleteAuction);
