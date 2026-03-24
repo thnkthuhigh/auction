@@ -7,6 +7,8 @@ import {
   updateAuctionSchema,
   reviewAuctionSchema,
   createAuctionSessionSchema,
+  updateAuctionSessionConfigSchema,
+  cancelAuctionSessionSchema,
 } from './auction.schema';
 
 export const auctionRoutes = Router();
@@ -35,6 +37,20 @@ auctionRoutes.patch(
   requireAdmin,
   validate(createAuctionSessionSchema),
   auctionController.createAuctionSession,
+);
+auctionRoutes.patch(
+  '/:id/session-config',
+  authMiddleware,
+  requireAdmin,
+  validate(updateAuctionSessionConfigSchema),
+  auctionController.updateAuctionSessionConfig,
+);
+auctionRoutes.patch(
+  '/:id/session/cancel',
+  authMiddleware,
+  requireAdmin,
+  validate(cancelAuctionSessionSchema),
+  auctionController.cancelAuctionSession,
 );
 
 // Public detail route

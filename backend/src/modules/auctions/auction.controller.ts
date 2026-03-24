@@ -102,3 +102,29 @@ export async function createAuctionSession(
     next(error);
   }
 }
+
+export async function updateAuctionSessionConfig(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const data = await auctionService.updateAuctionSessionConfig(req.params.id, req.body);
+    res.json({ success: true, data, message: 'Cap nhat cau hinh phien thanh cong' });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function cancelAuctionSession(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const data = await auctionService.cancelAuctionSession(req.params.id, req.body);
+    res.json({ success: true, data, message: 'Huy phien dau gia thanh cong' });
+  } catch (error) {
+    next(error);
+  }
+}
