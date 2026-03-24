@@ -68,6 +68,11 @@ export const auctionService = {
     await api.delete(`/auctions/${id}`);
   },
 
+  submitForReview: async (id: string): Promise<Auction> => {
+    const res = await api.post(`/auctions/${id}/submit`);
+    return res.data.data;
+  },
+
   getCategories: async (): Promise<Category[]> => {
     const res = await api.get('/auctions/categories');
     return res.data.data;

@@ -54,3 +54,4 @@ auctionRoutes.put(
   auctionController.updateAuction,
 );
 auctionRoutes.delete('/:id', authMiddleware, auctionController.deleteAuction);
+auctionRoutes.post('/:id/submit', authMiddleware, auctionController.submitAuction);
