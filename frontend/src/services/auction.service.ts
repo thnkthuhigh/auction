@@ -1,6 +1,8 @@
 import api from './api.service';
 import type {
   Auction,
+  AuctionReviewStatus,
+  AuctionStatus,
   CreateAuctionDTO,
   AuctionFilters,
   PaginatedResponse,
@@ -28,8 +30,8 @@ export interface AdminReviewQueueItem {
   startPrice: number;
   currentPrice: number;
   minBidStep: number;
-  status: 'PENDING' | 'ACTIVE' | 'ENDED' | 'CANCELLED';
-  reviewStatus: 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED' | 'CHANGES_REQUESTED';
+  status: AuctionStatus;
+  reviewStatus: AuctionReviewStatus;
   reviewNote?: string | null;
   reviewedAt?: string | null;
   reviewedById?: string | null;
@@ -138,8 +140,8 @@ export const auctionService = {
       page?: number;
       limit?: number;
       search?: string;
-      status?: 'PENDING' | 'ACTIVE' | 'ENDED' | 'CANCELLED';
-      reviewStatus?: 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED' | 'CHANGES_REQUESTED';
+      status?: AuctionStatus;
+      reviewStatus?: AuctionReviewStatus;
       sortBy?: 'updatedAt' | 'createdAt' | 'startTime' | 'endTime' | 'currentPrice';
       sortOrder?: 'asc' | 'desc';
     } = {},
