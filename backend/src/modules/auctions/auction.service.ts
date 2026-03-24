@@ -222,6 +222,26 @@ export async function deleteAuction(id: string, sellerId: string, isAdmin: boole
   await redis.del(REDIS_KEYS.auctionBidCount(id));
 }
 
+export async function submitAuctionForReview(id: string, sellerId: string) {
+  const auction = await prisma.auction.findUnique({ where: { id } });
+  if (!auction) throw new AppError('Auction not found', 404);
+  if (auction.sellerId !== sellerId) throw new AppError('Forbidden', 403);
+  if (auction.status !== 'PENDING')
+    throw new AppError('Chỉ có thể gửi duyệt đấu giá ở trạng thái bản nháp (PENDING)');
+
+  const updated = await prisma.auction.update({
+    where: { id },
+    data: { status: 'REVIEW' },
+    include: {
+      seller: { select: { id: true, username: true } },
+      category: true,
+      _count: { select: { bids: true } },
+    },
+  });
+
+  return formatAuction(updated as Record<string, unknown> & { _count?: { bids: number } });
+}
+
 export async function getCategories() {
   return prisma.category.findMany({ orderBy: { name: 'asc' } });
 }
