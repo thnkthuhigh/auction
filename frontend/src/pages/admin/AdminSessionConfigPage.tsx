@@ -1,13 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CalendarClock, Search, Save, User, FolderOpen } from 'lucide-react';
+import { CalendarClock, Search, Save, User, FolderOpen, Ban } from 'lucide-react';
 import toast from 'react-hot-toast';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import type { CreateAuctionSessionPayload } from '@/services/auction.service';
 import { auctionService } from '@/services/auction.service';
 
 const PAGE_SIZE = 12;
+
+type SessionStatus = 'PENDING' | 'ACTIVE' | 'ENDED' | 'CANCELLED';
+type ReviewStatus = 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED' | 'CHANGES_REQUESTED';
 
 type SessionCandidate = {
   id: string;
@@ -16,8 +19,8 @@ type SessionCandidate = {
   imageUrl?: string | null;
   startPrice: number;
   minBidStep: number;
-  status: 'PENDING' | 'ACTIVE' | 'ENDED' | 'CANCELLED';
-  reviewStatus?: 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED' | 'CHANGES_REQUESTED';
+  status: SessionStatus;
+  reviewStatus?: ReviewStatus;
   startTime: string;
   endTime: string;
   seller?: {
@@ -26,6 +29,7 @@ type SessionCandidate = {
   category?: {
     name?: string;
   };
+  totalBids?: number;
 };
 
 type SessionForm = {
@@ -50,6 +54,13 @@ function formatDate(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '-';
   return date.toLocaleString('vi-VN');
+}
+
+function getStatusBadgeClass(status: SessionStatus): string {
+  if (status === 'PENDING') return 'bg-amber-100 text-amber-800';
+  if (status === 'ACTIVE') return 'bg-emerald-100 text-emerald-800';
+  if (status === 'ENDED') return 'bg-slate-200 text-slate-700';
+  return 'bg-rose-100 text-rose-800';
 }
 
 export default function AdminSessionConfigPage() {
@@ -99,20 +110,28 @@ export default function AdminSessionConfigPage() {
     });
   }, [candidates]);
 
-  const createSessionMutation = useMutation({
+  const configMutation = useMutation({
     mutationFn: (params: { auctionId: string; payload: CreateAuctionSessionPayload }) =>
-      auctionService.createAuctionSession(params.auctionId, params.payload),
+      auctionService.updateAuctionSessionConfig(params.auctionId, params.payload),
     onSuccess: () => {
-      toast.success('Đã tạo/cập nhật phiên đấu giá thành công');
+      toast.success('Da cap nhat cau hinh phien thanh cong');
       queryClient.invalidateQueries({ queryKey: ['admin-session-candidates'] });
     },
     onError: (error: { response?: { data?: { message?: string } } }) => {
       const message = error.response?.data?.message;
-      if (message === 'Route not found') {
-        toast.error('API AS-49 chưa có trên môi trường hiện tại');
-        return;
-      }
-      toast.error(message || 'Không thể tạo phiên đấu giá');
+      toast.error(message || 'Khong the cap nhat cau hinh phien');
+    },
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: (auctionId: string) => auctionService.cancelAuctionSession(auctionId),
+    onSuccess: () => {
+      toast.success('Da huy phien dau gia');
+      queryClient.invalidateQueries({ queryKey: ['admin-session-candidates'] });
+    },
+    onError: (error: { response?: { data?: { message?: string } } }) => {
+      const message = error.response?.data?.message;
+      toast.error(message || 'Khong the huy phien dau gia');
     },
   });
 
@@ -126,10 +145,15 @@ export default function AdminSessionConfigPage() {
     }));
   };
 
-  const handleSaveSession = (item: SessionCandidate): void => {
+  const handleSaveConfig = (item: SessionCandidate): void => {
+    if (item.status !== 'PENDING') {
+      toast.error('Chi cho phep cau hinh phien dang o trang thai PENDING');
+      return;
+    }
+
     const form = forms[item.id];
     if (!form) {
-      toast.error('Thiếu dữ liệu cấu hình phiên');
+      toast.error('Thieu du lieu cau hinh phien');
       return;
     }
 
@@ -137,17 +161,17 @@ export default function AdminSessionConfigPage() {
     const minBidStep = Number(form.minBidStep);
 
     if (!form.startTime || !form.endTime) {
-      toast.error('Vui lòng chọn đầy đủ thời gian bắt đầu/kết thúc');
+      toast.error('Vui long chon day du thoi gian bat dau/ket thuc');
       return;
     }
 
     if (!Number.isFinite(startPrice) || startPrice < 1000) {
-      toast.error('Giá khởi điểm phải từ 1,000 trở lên');
+      toast.error('Gia khoi diem phai tu 1,000 tro len');
       return;
     }
 
     if (!Number.isFinite(minBidStep) || minBidStep < 1000) {
-      toast.error('Bước giá phải từ 1,000 trở lên');
+      toast.error('Buoc gia phai tu 1,000 tro len');
       return;
     }
 
@@ -158,13 +182,24 @@ export default function AdminSessionConfigPage() {
       minBidStep,
     };
 
-    createSessionMutation.mutate({ auctionId: item.id, payload });
+    configMutation.mutate({ auctionId: item.id, payload });
+  };
+
+  const handleCancelSession = (item: SessionCandidate): void => {
+    if (item.status === 'ENDED' || item.status === 'CANCELLED') {
+      toast.error('Phien nay da dong, khong the huy');
+      return;
+    }
+
+    const confirmed = window.confirm('Ban co chac chan muon huy phien dau gia nay?');
+    if (!confirmed) return;
+    cancelMutation.mutate(item.id);
   };
 
   if (isLoading) {
     return (
       <div className="rounded-xl border border-slate-200 bg-white p-8">
-        <LoadingSpinner size="lg" text="Đang tải danh sách sản phẩm đã duyệt..." />
+        <LoadingSpinner size="lg" text="Dang tai danh sach san pham da duyet..." />
       </div>
     );
   }
@@ -174,9 +209,9 @@ export default function AdminSessionConfigPage() {
       <section className="rounded-xl border border-slate-200 bg-white p-4">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-xl font-bold text-slate-900">Tạo phiên đấu giá</h1>
+            <h1 className="text-xl font-bold text-slate-900">Thiet lap cau hinh phien</h1>
             <p className="text-sm text-slate-600 mt-1">
-              AS-48: cấu hình phiên cho sản phẩm đã duyệt (AS-49 API).
+              AS-50: cap nhat cau hinh phien va huy phien neu can.
             </p>
           </div>
 
@@ -185,20 +220,20 @@ export default function AdminSessionConfigPage() {
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Tìm theo tên sản phẩm / seller..."
+              placeholder="Tim theo ten san pham / seller..."
               className="w-full rounded-lg border border-slate-300 pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
         </div>
       </section>
 
-      {isFetching && <p className="text-xs text-slate-500 px-1">Đang làm mới dữ liệu...</p>}
+      {isFetching && <p className="text-xs text-slate-500 px-1">Dang lam moi du lieu...</p>}
 
       {candidates.length === 0 ? (
         <section className="rounded-xl border border-slate-200 bg-white p-8 text-center">
-          <p className="text-slate-700 font-medium">Không có sản phẩm APPROVED để tạo phiên</p>
+          <p className="text-slate-700 font-medium">Khong co san pham APPROVED de cau hinh phien</p>
           <p className="text-sm text-slate-500 mt-1">
-            Hãy duyệt sản phẩm ở màn AS-46/AS-47 trước khi cấu hình phiên.
+            Hay duyet san pham o man AS-46/AS-47 truoc khi cau hinh phien.
           </p>
         </section>
       ) : (
@@ -226,8 +261,12 @@ export default function AdminSessionConfigPage() {
                       <h2 className="text-base font-semibold text-slate-900">{item.title}</h2>
                       <p className="text-sm text-slate-600 mt-1 line-clamp-2">{item.description}</p>
                     </div>
-                    <span className="inline-flex items-center rounded-full bg-emerald-100 text-emerald-800 px-2.5 py-1 text-xs font-semibold h-fit">
-                      APPROVED
+                    <span
+                      className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold h-fit ${getStatusBadgeClass(
+                        item.status,
+                      )}`}
+                    >
+                      {item.status}
                     </span>
                   </div>
 
@@ -239,73 +278,92 @@ export default function AdminSessionConfigPage() {
                     />
                     <InfoCell
                       icon={<FolderOpen className="h-3.5 w-3.5 text-slate-500" />}
-                      label="Danh mục"
+                      label="Danh muc"
                       value={item.category?.name || '-'}
                     />
-                    <InfoCell label="Giá hiện tại" value={formatCurrency(item.startPrice)} />
-                    <InfoCell label="Bước giá hiện tại" value={formatCurrency(item.minBidStep)} />
+                    <InfoCell label="Gia hien tai" value={formatCurrency(item.startPrice)} />
+                    <InfoCell label="Buoc gia hien tai" value={formatCurrency(item.minBidStep)} />
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-slate-500">
-                    <p>Lịch hiện tại bắt đầu: {formatDate(item.startTime)}</p>
-                    <p>Lịch hiện tại kết thúc: {formatDate(item.endTime)}</p>
+                    <p>Lich hien tai bat dau: {formatDate(item.startTime)}</p>
+                    <p>Lich hien tai ket thuc: {formatDate(item.endTime)}</p>
                   </div>
 
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                     <label className="space-y-1">
-                      <span className="text-xs font-medium text-slate-600">Bắt đầu</span>
+                      <span className="text-xs font-medium text-slate-600">Bat dau</span>
                       <input
                         type="datetime-local"
                         value={forms[item.id]?.startTime ?? ''}
                         onChange={(e) => handleFieldChange(item.id, 'startTime', e.target.value)}
-                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        disabled={item.status !== 'PENDING'}
+                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100"
                       />
                     </label>
                     <label className="space-y-1">
-                      <span className="text-xs font-medium text-slate-600">Kết thúc</span>
+                      <span className="text-xs font-medium text-slate-600">Ket thuc</span>
                       <input
                         type="datetime-local"
                         value={forms[item.id]?.endTime ?? ''}
                         onChange={(e) => handleFieldChange(item.id, 'endTime', e.target.value)}
-                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        disabled={item.status !== 'PENDING'}
+                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100"
                       />
                     </label>
                   </div>
 
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                     <label className="space-y-1">
-                      <span className="text-xs font-medium text-slate-600">Giá khởi điểm</span>
+                      <span className="text-xs font-medium text-slate-600">Gia khoi diem</span>
                       <input
                         type="number"
                         min={1000}
                         step={1000}
                         value={forms[item.id]?.startPrice ?? ''}
                         onChange={(e) => handleFieldChange(item.id, 'startPrice', e.target.value)}
-                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        disabled={item.status !== 'PENDING'}
+                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100"
                       />
                     </label>
                     <label className="space-y-1">
-                      <span className="text-xs font-medium text-slate-600">Bước giá</span>
+                      <span className="text-xs font-medium text-slate-600">Buoc gia</span>
                       <input
                         type="number"
                         min={1000}
                         step={1000}
                         value={forms[item.id]?.minBidStep ?? ''}
                         onChange={(e) => handleFieldChange(item.id, 'minBidStep', e.target.value)}
-                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        disabled={item.status !== 'PENDING'}
+                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100"
                       />
                     </label>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => handleSaveSession(item)}
-                    disabled={createSessionMutation.isPending}
-                    className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
-                  >
-                    <Save className="h-4 w-4" />
-                    Lưu cấu hình phiên
-                  </button>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleSaveConfig(item)}
+                      disabled={item.status !== 'PENDING' || configMutation.isPending}
+                      className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+                    >
+                      <Save className="h-4 w-4" />
+                      Luu cau hinh
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleCancelSession(item)}
+                      disabled={
+                        item.status === 'ENDED' ||
+                        item.status === 'CANCELLED' ||
+                        cancelMutation.isPending
+                      }
+                      className="inline-flex items-center gap-2 rounded-lg bg-rose-600 px-3 py-2 text-sm font-medium text-white hover:bg-rose-700 disabled:opacity-60"
+                    >
+                      <Ban className="h-4 w-4" />
+                      Huy phien
+                    </button>
+                  </div>
                 </div>
               </div>
             </article>
@@ -320,7 +378,7 @@ export default function AdminSessionConfigPage() {
             disabled={page === 1}
             className="px-3 py-2 text-sm rounded-lg border border-slate-300 disabled:opacity-50 hover:bg-slate-50"
           >
-            Trước
+            Truoc
           </button>
           <span className="text-sm text-slate-600">
             Trang {page}/{data.totalPages}

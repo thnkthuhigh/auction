@@ -26,7 +26,10 @@ export const updateAuctionSchema = z
       }
       return true;
     },
-    { message: 'Thời gian kết thúc phải sau thời gian bắt đầu', path: ['endTime'] },
+    {
+      message: 'Thời gian kết thúc phải sau thời gian bắt đầu',
+      path: ['endTime'],
+    },
   );
 
 export const reviewAuctionSchema = z.object({
@@ -41,7 +44,15 @@ export const createAuctionSessionSchema = z.object({
   minBidStep: z.number().min(1000, 'minBidStep must be at least 1,000'),
 });
 
+export const updateAuctionSessionConfigSchema = createAuctionSessionSchema;
+
+export const cancelAuctionSessionSchema = z.object({
+  reason: z.string().max(500).optional(),
+});
+
 export type CreateAuctionInput = z.infer<typeof createAuctionSchema>;
 export type UpdateAuctionInput = z.infer<typeof updateAuctionSchema>;
 export type ReviewAuctionInput = z.infer<typeof reviewAuctionSchema>;
 export type CreateAuctionSessionInput = z.infer<typeof createAuctionSessionSchema>;
+export type UpdateAuctionSessionConfigInput = z.infer<typeof updateAuctionSessionConfigSchema>;
+export type CancelAuctionSessionInput = z.infer<typeof cancelAuctionSessionSchema>;

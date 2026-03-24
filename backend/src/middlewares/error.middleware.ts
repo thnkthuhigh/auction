@@ -11,16 +11,23 @@ export function errorMiddleware(
 
   if (err instanceof ZodError) {
     const errors: Record<string, string[]> = {};
+
     err.errors.forEach((e) => {
       const key = e.path.join('.');
       errors[key] = errors[key] || [];
       errors[key].push(e.message);
     });
-    res.status(400).json({ success: false, message: 'Validation error', errors });
+
+    res.status(400).json({
+      success: false,
+      message: 'Validation error',
+      errors,
+    });
     return;
   }
 
   const status = (err as { statusCode?: number }).statusCode || 500;
+
   res.status(status).json({
     success: false,
     message: status === 500 ? 'Internal server error' : err.message,

@@ -4,9 +4,11 @@ import { prisma } from '../../config/database';
 import { AppError } from '../../middlewares/error.middleware';
 import { redis, REDIS_KEYS } from '../../config/redis';
 import type {
+  CancelAuctionSessionInput,
   CreateAuctionInput,
   CreateAuctionSessionInput,
   ReviewAuctionInput,
+  UpdateAuctionSessionConfigInput,
   UpdateAuctionInput,
 } from './auction.schema';
 
@@ -30,6 +32,16 @@ type AdminMonitoringParams = {
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
 };
+
+function validateSessionWindow(startTime: Date, endTime: Date) {
+  if (startTime >= endTime) {
+    throw new AppError('endTime must be after startTime', 400);
+  }
+
+  if (endTime <= new Date()) {
+    throw new AppError('endTime must be in the future', 400);
+  }
+}
 
 export async function getAuctions(filters: {
   status?: AuctionStatus;
@@ -144,14 +156,7 @@ export async function createAuction(sellerId: string, input: CreateAuctionInput)
 export async function createAuctionSession(auctionId: string, input: CreateAuctionSessionInput) {
   const startTime = new Date(input.startTime);
   const endTime = new Date(input.endTime);
-
-  if (startTime >= endTime) {
-    throw new AppError('endTime must be after startTime', 400);
-  }
-
-  if (endTime <= new Date()) {
-    throw new AppError('endTime must be in the future', 400);
-  }
+  validateSessionWindow(startTime, endTime);
 
   const auction = await prisma.auction.findUnique({
     where: { id: auctionId },
@@ -198,6 +203,98 @@ export async function createAuctionSession(auctionId: string, input: CreateAucti
   return formatAuction(updated as Record<string, unknown> & { _count?: { bids: number } });
 }
 
+export async function updateAuctionSessionConfig(
+  auctionId: string,
+  input: UpdateAuctionSessionConfigInput,
+) {
+  const startTime = new Date(input.startTime);
+  const endTime = new Date(input.endTime);
+  validateSessionWindow(startTime, endTime);
+
+  const auction = await prisma.auction.findUnique({
+    where: { id: auctionId },
+    select: {
+      id: true,
+      status: true,
+      reviewStatus: true,
+      _count: { select: { bids: true } },
+    },
+  });
+
+  if (!auction) {
+    throw new AppError('Auction not found', 404);
+  }
+
+  if (auction.reviewStatus !== 'APPROVED') {
+    throw new AppError('Only approved products can be configured', 400);
+  }
+
+  if (auction.status !== 'PENDING') {
+    throw new AppError('Only pending sessions can be configured', 400);
+  }
+
+  if (auction._count.bids > 0) {
+    throw new AppError('Cannot change session config after bids exist', 400);
+  }
+
+  const updated = await prisma.auction.update({
+    where: { id: auctionId },
+    data: {
+      startTime,
+      endTime,
+      startPrice: input.startPrice,
+      currentPrice: input.startPrice,
+      minBidStep: input.minBidStep,
+    },
+    include: {
+      seller: { select: { id: true, username: true, avatar: true } },
+      category: { select: { id: true, name: true, slug: true } },
+      reviewedBy: { select: { id: true, username: true, email: true } },
+      _count: { select: { bids: true } },
+    },
+  });
+
+  await redis.set(REDIS_KEYS.auctionCurrentPrice(auctionId), input.startPrice);
+  await redis.del(REDIS_KEYS.auctionBidCount(auctionId));
+
+  return formatAuction(updated as Record<string, unknown> & { _count?: { bids: number } });
+}
+
+export async function cancelAuctionSession(auctionId: string, _input?: CancelAuctionSessionInput) {
+  const auction = await prisma.auction.findUnique({
+    where: { id: auctionId },
+    select: { id: true, status: true, reviewStatus: true },
+  });
+
+  if (!auction) {
+    throw new AppError('Auction not found', 404);
+  }
+
+  if (auction.reviewStatus !== 'APPROVED') {
+    throw new AppError('Only approved products can be managed', 400);
+  }
+
+  if (auction.status === 'ENDED' || auction.status === 'CANCELLED') {
+    throw new AppError('Auction session is already closed', 400);
+  }
+
+  const updated = await prisma.auction.update({
+    where: { id: auctionId },
+    data: { status: 'CANCELLED' },
+    include: {
+      seller: { select: { id: true, username: true, avatar: true } },
+      category: { select: { id: true, name: true, slug: true } },
+      reviewedBy: { select: { id: true, username: true, email: true } },
+      _count: { select: { bids: true } },
+    },
+  });
+
+  await redis.del(REDIS_KEYS.auctionCurrentPrice(auctionId));
+  await redis.del(REDIS_KEYS.auctionBidCount(auctionId));
+
+  return formatAuction(updated as Record<string, unknown> & { _count?: { bids: number } });
+}
+
 export async function getAdminMonitoring(params: AdminMonitoringParams) {
   const page = params.page && params.page > 0 ? params.page : 1;
   const limit = params.limit && params.limit > 0 ? params.limit : 12;
@@ -227,32 +324,40 @@ export async function getAdminMonitoring(params: AdminMonitoringParams) {
   const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
   const next24Hours = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
-  const [items, total, statusGrouped, pendingReviewProducts, totalBids, bidsLast24h, staleActive, upcomingStarts] =
-    await Promise.all([
-      prisma.auction.findMany({
-        where,
-        include: {
-          seller: { select: { id: true, username: true, avatar: true } },
-          category: { select: { id: true, name: true, slug: true } },
-          _count: { select: { bids: true } },
-        },
-        orderBy: { [validSortBy]: sortOrder },
-        skip,
-        take: limit,
-      }),
-      prisma.auction.count({ where }),
-      prisma.auction.groupBy({
-        by: ['status'],
-        _count: { _all: true },
-      }),
-      prisma.auction.count({ where: { reviewStatus: 'PENDING_REVIEW' } }),
-      prisma.bid.count(),
-      prisma.bid.count({ where: { createdAt: { gte: oneDayAgo } } }),
-      prisma.auction.count({ where: { status: 'ACTIVE', endTime: { lte: now } } }),
-      prisma.auction.count({
-        where: { status: 'PENDING', startTime: { gte: now, lte: next24Hours } },
-      }),
-    ]);
+  const [
+    items,
+    total,
+    statusGrouped,
+    pendingReviewProducts,
+    totalBids,
+    bidsLast24h,
+    staleActive,
+    upcomingStarts,
+  ] = await Promise.all([
+    prisma.auction.findMany({
+      where,
+      include: {
+        seller: { select: { id: true, username: true, avatar: true } },
+        category: { select: { id: true, name: true, slug: true } },
+        _count: { select: { bids: true } },
+      },
+      orderBy: { [validSortBy]: sortOrder },
+      skip,
+      take: limit,
+    }),
+    prisma.auction.count({ where }),
+    prisma.auction.groupBy({
+      by: ['status'],
+      _count: { _all: true },
+    }),
+    prisma.auction.count({ where: { reviewStatus: 'PENDING_REVIEW' } }),
+    prisma.bid.count(),
+    prisma.bid.count({ where: { createdAt: { gte: oneDayAgo } } }),
+    prisma.auction.count({ where: { status: 'ACTIVE', endTime: { lte: now } } }),
+    prisma.auction.count({
+      where: { status: 'PENDING', startTime: { gte: now, lte: next24Hours } },
+    }),
+  ]);
 
   const statusCounts: Record<AuctionStatus, number> = {
     PENDING: 0,

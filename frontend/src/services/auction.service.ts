@@ -16,6 +16,10 @@ export interface CreateAuctionSessionPayload {
   minBidStep: number;
 }
 
+export interface CancelAuctionSessionPayload {
+  reason?: string;
+}
+
 export interface AdminReviewQueueItem {
   id: string;
   title: string;
@@ -90,6 +94,13 @@ export const auctionService = {
     await api.delete(`/auctions/${id}`);
   },
 
+  getMyAuctions: async (
+    filters: { status?: string; page?: number; limit?: number } = {},
+  ): Promise<PaginatedResponse<Auction>> => {
+    const res = await api.get('/auctions/my', { params: filters });
+    return res.data;
+  },
+
   getCategories: async (): Promise<Category[]> => {
     const res = await api.get('/auctions/categories');
     return res.data.data;
@@ -148,6 +159,22 @@ export const auctionService = {
   createAuctionSession: async (auctionId: string, payload: CreateAuctionSessionPayload) => {
     const res = await api.patch<{ data: AdminReviewQueueItem }>(
       `/auctions/${auctionId}/session`,
+      payload,
+    );
+    return res.data.data;
+  },
+
+  updateAuctionSessionConfig: async (auctionId: string, payload: CreateAuctionSessionPayload) => {
+    const res = await api.patch<{ data: AdminReviewQueueItem }>(
+      `/auctions/${auctionId}/session-config`,
+      payload,
+    );
+    return res.data.data;
+  },
+
+  cancelAuctionSession: async (auctionId: string, payload: CancelAuctionSessionPayload = {}) => {
+    const res = await api.patch<{ data: AdminReviewQueueItem }>(
+      `/auctions/${auctionId}/session/cancel`,
       payload,
     );
     return res.data.data;
