@@ -43,6 +43,49 @@ function validateSessionWindow(startTime: Date, endTime: Date) {
   }
 }
 
+export async function getMyAuctions(
+  userId: string,
+  filters: {
+    status?: AuctionStatus;
+    page?: number;
+    limit?: number;
+  } = {},
+) {
+  const page = filters.page && filters.page > 0 ? filters.page : 1;
+  const limit = filters.limit && filters.limit > 0 ? filters.limit : 20;
+  const skip = (page - 1) * limit;
+
+  const where: Prisma.AuctionWhereInput = {
+    sellerId: userId,
+    ...(filters.status && { status: filters.status }),
+  };
+
+  const [auctions, total] = await Promise.all([
+    prisma.auction.findMany({
+      where,
+      include: {
+        seller: { select: { id: true, username: true, avatar: true } },
+        category: { select: { id: true, name: true, slug: true } },
+        _count: { select: { bids: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take: limit,
+    }),
+    prisma.auction.count({ where }),
+  ]);
+
+  return {
+    data: auctions.map((auction) =>
+      formatAuction(auction as Record<string, unknown> & { _count?: { bids: number } }),
+    ),
+    total,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit),
+  };
+}
+
 export async function getAuctions(filters: {
   status?: AuctionStatus;
   categoryId?: string;
