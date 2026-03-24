@@ -81,6 +81,31 @@ export async function getReviewQueue(req: AuthenticatedRequest, res: Response, n
   }
 }
 
+export async function getAdminMonitoring(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const { page, limit, search, status, reviewStatus, sortBy, sortOrder } = req.query as Record<
+      string,
+      string
+    >;
+    const data = await auctionService.getAdminMonitoring({
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+      search,
+      status: status as never,
+      reviewStatus: reviewStatus as never,
+      sortBy,
+      sortOrder: sortOrder as 'asc' | 'desc' | undefined,
+    });
+    res.json({ success: true, ...data });
+  } catch (error) {
+    next(error);
+  }
+}
+
 export async function reviewAuction(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   try {
     const data = await auctionService.reviewAuction(req.params.id, req.user!.id, req.body);
