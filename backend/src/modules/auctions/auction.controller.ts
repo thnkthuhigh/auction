@@ -17,6 +17,7 @@ export async function getAuctions(req: AuthenticatedRequest, res: Response, next
       string,
       string
     >;
+
     const data = await auctionService.getAuctions({
       status: status as never,
       categoryId,
@@ -26,6 +27,7 @@ export async function getAuctions(req: AuthenticatedRequest, res: Response, next
       sortBy,
       sortOrder: sortOrder as 'asc' | 'desc' | undefined,
     });
+
     res.json({ success: true, ...data });
   } catch (error) {
     next(error);
@@ -40,11 +42,13 @@ export async function getMyAuctions(
   try {
     const user = requireUser(req);
     const { status, page, limit } = req.query as Record<string, string>;
+
     const data = await auctionService.getMyAuctions(user.id, {
       status: status as never,
       page: page ? Number(page) : undefined,
       limit: limit ? Number(limit) : undefined,
     });
+
     res.json({ success: true, ...data });
   } catch (error) {
     next(error);
@@ -122,6 +126,7 @@ export async function getAdminMonitoring(
       string,
       string
     >;
+
     const data = await auctionService.getAdminMonitoring({
       page: page ? Number(page) : undefined,
       limit: limit ? Number(limit) : undefined,
@@ -131,6 +136,7 @@ export async function getAdminMonitoring(
       sortBy,
       sortOrder: sortOrder as 'asc' | 'desc' | undefined,
     });
+
     res.json({ success: true, ...data });
   } catch (error) {
     next(error);
