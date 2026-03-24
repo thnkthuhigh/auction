@@ -6,12 +6,13 @@ import type { Bid } from '@auction/shared';
 interface Props {
   bids: Bid[];
   currentUserId?: string;
+  winnerBidId?: string;
 }
 
 /**
  * TV5 phụ trách component này
  */
-export default function BidHistory({ bids, currentUserId }: Props) {
+export default function BidHistory({ bids, currentUserId, winnerBidId }: Props) {
   if (bids.length === 0) {
     return (
       <div className="text-center py-8 text-gray-400">
@@ -34,6 +35,11 @@ export default function BidHistory({ bids, currentUserId }: Props) {
             {index === 0 && (
               <span className="text-xs bg-blue-600 text-white px-1.5 py-0.5 rounded font-medium">
                 Cao nhất
+              </span>
+            )}
+            {winnerBidId === bid.id && (
+              <span className="text-xs bg-amber-500 text-white px-1.5 py-0.5 rounded font-medium">
+                Người thắng cuộc
               </span>
             )}
             <span
