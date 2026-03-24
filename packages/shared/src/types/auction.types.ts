@@ -1,4 +1,4 @@
-export type AuctionStatus = 'PENDING' | 'ACTIVE' | 'ENDED' | 'CANCELLED';
+export type AuctionStatus = 'PENDING' | 'REVIEW' | 'ACTIVE' | 'ENDED' | 'CANCELLED';
 
 export interface Category {
   id: string;

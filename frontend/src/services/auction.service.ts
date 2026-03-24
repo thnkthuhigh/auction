@@ -94,6 +94,11 @@ export const auctionService = {
     await api.delete(`/auctions/${id}`);
   },
 
+  submitForReview: async (id: string): Promise<Auction> => {
+    const res = await api.post(`/auctions/${id}/submit`);
+    return res.data.data;
+  },
+
   getMyAuctions: async (
     filters: { status?: string; page?: number; limit?: number } = {},
   ): Promise<PaginatedResponse<Auction>> => {

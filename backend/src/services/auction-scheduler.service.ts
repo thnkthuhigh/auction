@@ -11,9 +11,9 @@ export function startAuctionScheduler() {
   cron.schedule('*/30 * * * * *', async () => {
     const now = new Date();
 
-    // Kích hoạt đấu giá PENDING
+    // Kích hoạt đấu giá REVIEW đã đến startTime (admin đã duyệt, chờ lịch bắt đầu)
     const toStart = await prisma.auction.findMany({
-      where: { status: 'PENDING', startTime: { lte: now } },
+      where: { status: 'REVIEW', startTime: { lte: now } },
       select: { id: true, endTime: true },
     });
 

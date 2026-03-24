@@ -2,16 +2,22 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import path from 'path';
 import { authRoutes } from './modules/auth/auth.routes';
 import { userRoutes } from './modules/users/user.routes';
 import { auctionRoutes } from './modules/auctions/auction.routes';
 import { bidRoutes } from './modules/bids/bid.routes';
+import { uploadRoutes } from './modules/upload/upload.routes';
 import { errorMiddleware } from './middlewares/error.middleware';
 
 const app = express();
 
 // Security middlewares
-app.use(helmet());
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' }, // allow frontend to load uploaded images
+  }),
+);
 app.use(
   cors({
     origin: process.env.FRONTEND_URL || 'http://localhost:5173',
@@ -31,11 +37,15 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Serve uploaded images
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/auctions', auctionRoutes);
 app.use('/api/bids', bidRoutes);
+app.use('/api/upload', uploadRoutes);
 
 // 404 handler
 app.use((_req, res) => {
