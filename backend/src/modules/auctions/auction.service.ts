@@ -1,4 +1,4 @@
-import type { AuctionReviewStatus } from '@prisma/client';
+import type { AuctionReviewStatus, Prisma } from '@prisma/client';
 import type { AuctionStatus } from '@auction/shared';
 import { prisma } from '../../config/database';
 import { AppError } from '../../middlewares/error.middleware';
@@ -22,6 +22,16 @@ function formatAuction(a: Record<string, unknown> & { _count?: { bids: number } 
     _count: undefined,
   };
 }
+
+type AdminMonitoringParams = {
+  page?: number;
+  limit?: number;
+  search?: string;
+  status?: AuctionStatus;
+  reviewStatus?: AuctionReviewStatus;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+};
 
 function validateSessionWindow(startTime: Date, endTime: Date) {
   if (startTime >= endTime) {
@@ -283,6 +293,105 @@ export async function cancelAuctionSession(auctionId: string, _input?: CancelAuc
   await redis.del(REDIS_KEYS.auctionBidCount(auctionId));
 
   return formatAuction(updated as Record<string, unknown> & { _count?: { bids: number } });
+}
+
+export async function getAdminMonitoring(params: AdminMonitoringParams) {
+  const page = params.page && params.page > 0 ? params.page : 1;
+  const limit = params.limit && params.limit > 0 ? params.limit : 12;
+  const sortBy = params.sortBy ?? 'updatedAt';
+  const sortOrder = params.sortOrder ?? 'desc';
+  const skip = (page - 1) * limit;
+
+  const where: Prisma.AuctionWhereInput = {
+    ...(params.status && { status: params.status }),
+    ...(params.reviewStatus && { reviewStatus: params.reviewStatus }),
+    ...(params.search && {
+      OR: [
+        { title: { contains: params.search, mode: 'insensitive' } },
+        { description: { contains: params.search, mode: 'insensitive' } },
+        { seller: { username: { contains: params.search, mode: 'insensitive' } } },
+      ],
+    }),
+  };
+
+  const validSortBy = ['updatedAt', 'createdAt', 'startTime', 'endTime', 'currentPrice'].includes(
+    sortBy,
+  )
+    ? sortBy
+    : 'updatedAt';
+
+  const now = new Date();
+  const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const next24Hours = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+
+  const [
+    items,
+    total,
+    statusGrouped,
+    pendingReviewProducts,
+    totalBids,
+    bidsLast24h,
+    staleActive,
+    upcomingStarts,
+  ] = await Promise.all([
+    prisma.auction.findMany({
+      where,
+      include: {
+        seller: { select: { id: true, username: true, avatar: true } },
+        category: { select: { id: true, name: true, slug: true } },
+        _count: { select: { bids: true } },
+      },
+      orderBy: { [validSortBy]: sortOrder },
+      skip,
+      take: limit,
+    }),
+    prisma.auction.count({ where }),
+    prisma.auction.groupBy({
+      by: ['status'],
+      _count: { _all: true },
+    }),
+    prisma.auction.count({ where: { reviewStatus: 'PENDING_REVIEW' } }),
+    prisma.bid.count(),
+    prisma.bid.count({ where: { createdAt: { gte: oneDayAgo } } }),
+    prisma.auction.count({ where: { status: 'ACTIVE', endTime: { lte: now } } }),
+    prisma.auction.count({
+      where: { status: 'PENDING', startTime: { gte: now, lte: next24Hours } },
+    }),
+  ]);
+
+  const statusCounts: Record<AuctionStatus, number> = {
+    PENDING: 0,
+    ACTIVE: 0,
+    ENDED: 0,
+    CANCELLED: 0,
+  };
+
+  for (const row of statusGrouped) {
+    statusCounts[row.status as AuctionStatus] = row._count._all;
+  }
+
+  return {
+    summary: {
+      totalAuctions:
+        statusCounts.PENDING + statusCounts.ACTIVE + statusCounts.ENDED + statusCounts.CANCELLED,
+      pendingAuctions: statusCounts.PENDING,
+      activeAuctions: statusCounts.ACTIVE,
+      endedAuctions: statusCounts.ENDED,
+      cancelledAuctions: statusCounts.CANCELLED,
+      pendingReviewProducts,
+      totalBids,
+      bidsLast24h,
+      staleActiveAuctions: staleActive,
+      upcomingStarts24h: upcomingStarts,
+    },
+    data: items.map((item) =>
+      formatAuction(item as Record<string, unknown> & { _count?: { bids: number } }),
+    ),
+    total,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit),
+  };
 }
 
 export async function updateAuction(id: string, sellerId: string, input: UpdateAuctionInput) {

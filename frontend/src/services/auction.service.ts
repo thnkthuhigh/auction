@@ -52,6 +52,28 @@ export interface AdminReviewQueueItem {
   };
 }
 
+export interface AdminMonitoringSummary {
+  totalAuctions: number;
+  pendingAuctions: number;
+  activeAuctions: number;
+  endedAuctions: number;
+  cancelledAuctions: number;
+  pendingReviewProducts: number;
+  totalBids: number;
+  bidsLast24h: number;
+  staleActiveAuctions: number;
+  upcomingStarts24h: number;
+}
+
+export interface AdminMonitoringResponse {
+  summary: AdminMonitoringSummary;
+  data: AdminReviewQueueItem[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
 export const auctionService = {
   getAuctions: async (filters: AuctionFilters = {}): Promise<PaginatedResponse<Auction>> => {
     const res = await api.get('/auctions', { params: filters });
@@ -103,6 +125,23 @@ export const auctionService = {
         params,
       },
     );
+    return res.data;
+  },
+
+  getAdminMonitoring: async (
+    params: {
+      page?: number;
+      limit?: number;
+      search?: string;
+      status?: 'PENDING' | 'ACTIVE' | 'ENDED' | 'CANCELLED';
+      reviewStatus?: 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED' | 'CHANGES_REQUESTED';
+      sortBy?: 'updatedAt' | 'createdAt' | 'startTime' | 'endTime' | 'currentPrice';
+      sortOrder?: 'asc' | 'desc';
+    } = {},
+  ) => {
+    const res = await api.get<AdminMonitoringResponse>('/auctions/admin/monitoring', {
+      params,
+    });
     return res.data;
   },
 

@@ -1,5 +1,5 @@
 import { Link, NavLink } from 'react-router-dom';
-import { LayoutDashboard, ClipboardCheck, CalendarClock, PlusCircle } from 'lucide-react';
+import { LayoutDashboard, ClipboardCheck, CalendarClock, PlusCircle, Activity } from 'lucide-react';
 
 const menuItems = [
   {
@@ -19,6 +19,12 @@ const menuItems = [
     path: '/admin/sessions',
     icon: CalendarClock,
     description: 'AS-48',
+  },
+  {
+    label: 'Giam sat he thong',
+    path: '/admin/monitoring',
+    icon: Activity,
+    description: 'AS-60',
   },
 ];
 

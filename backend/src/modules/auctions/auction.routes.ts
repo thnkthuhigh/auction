@@ -28,6 +28,13 @@ auctionRoutes.get(
   auctionController.getReviewQueue,
 );
 
+auctionRoutes.get(
+  '/admin/monitoring',
+  authMiddleware,
+  requireAdmin,
+  auctionController.getAdminMonitoring,
+);
+
 auctionRoutes.patch(
   '/:id/review',
   authMiddleware,
