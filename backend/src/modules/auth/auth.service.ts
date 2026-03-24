@@ -42,6 +42,7 @@ function toPublicUser(user: {
   avatar: string | null;
   balance: Prisma.Decimal;
   role: 'USER' | 'ADMIN';
+  isActive: boolean;
   createdAt: Date;
 }) {
   return {
@@ -89,6 +90,7 @@ export async function register(input: RegisterInput) {
         avatar: true,
         balance: true,
         role: true,
+        isActive: true,
         createdAt: true,
       },
     });
@@ -130,6 +132,10 @@ export async function login(input: LoginInput) {
     throw new AppError('Email hoac mat khau khong dung', 401);
   }
 
+  if (!user.isActive) {
+    throw new AppError('Account is locked', 403);
+  }
+
   const { password: _pw, ...safeUser } = user;
   const tokens = generateTokens(user.id);
 
@@ -150,6 +156,7 @@ export async function refreshAccessToken(refreshToken: string) {
     });
 
     if (!user) throw new AppError('User not found', 401);
+    if (!user.isActive) throw new AppError('Account is locked', 403);
 
     const tokens = generateTokens(user.id);
     return tokens;
