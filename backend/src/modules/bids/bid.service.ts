@@ -9,6 +9,10 @@ function isAuctionExpired(endTime: Date): boolean {
 }
 
 export async function placeBid(bidderId: string, auctionId: string, amount: number) {
+  if (!Number.isFinite(amount) || !Number.isInteger(amount) || amount <= 0) {
+    throw new AppError('Số tiền đặt giá không hợp lệ', 400);
+  }
+
   const auction = await prisma.auction.findUnique({
     where: { id: auctionId },
     include: { bids: { orderBy: { createdAt: 'desc' }, take: 1 } },

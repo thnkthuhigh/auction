@@ -1,13 +1,8 @@
 import { Router } from 'express';
 import * as bidController from './bid.controller';
 import { authMiddleware } from '../../middlewares/auth.middleware';
-import { z } from 'zod';
 import { validate } from '../../middlewares/validate.middleware';
-
-const placeBidSchema = z.object({
-  auctionId: z.string().uuid(),
-  amount: z.number().min(1000),
-});
+import { placeBidSchema } from './bid.schema';
 
 export const bidRoutes = Router();
 

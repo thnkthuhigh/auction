@@ -18,6 +18,7 @@ export default function BidForm({ auction, onPlaceBid, isLoading }: Props) {
   const schema = z.object({
     amount: z
       .number({ invalid_type_error: 'Vui lòng nhập số tiền' })
+      .int('Số tiền phải là số nguyên')
       .min(minBid, `Giá thầu tối thiểu ${minBid.toLocaleString('vi-VN')} ₫`),
   });
 
@@ -77,6 +78,8 @@ export default function BidForm({ auction, onPlaceBid, isLoading }: Props) {
           <input
             {...register('amount', { valueAsNumber: true })}
             type="number"
+            step="1"
+            min={minBid}
             placeholder={`Tối thiểu ${minBid.toLocaleString('vi-VN')}`}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             disabled={!canBid}
