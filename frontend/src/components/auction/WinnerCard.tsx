@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { Trophy } from 'lucide-react';
 
 interface WinnerCardProps {
@@ -14,46 +15,45 @@ export default function WinnerCard({
   isCurrentUserWinner,
 }: WinnerCardProps) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-4">
-      <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-        <Trophy className="h-5 w-5 text-amber-500" />
-        Kết quả đấu giá
-      </h3>
-
-      <div className="rounded-lg border border-gray-200 p-4 text-center">
-        <p className="text-xs text-gray-500">Kết quả cuối cùng</p>
-        <p className="mt-1 text-3xl font-extrabold text-blue-600">
-          {finalAmount.toLocaleString('vi-VN')} ₫
+    <section className="overflow-hidden rounded-[24px] border border-amber-200 bg-[linear-gradient(180deg,#fffdf7_0%,#ffffff_100%)] shadow-sm">
+      <div className="border-b border-amber-100 bg-amber-50 px-5 py-4">
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-700">
+          Auction result
         </p>
-        <p className="mt-2 text-sm text-gray-500">Người thắng: {winnerName}</p>
+        <h3 className="mt-1 flex items-center gap-2 text-lg font-semibold text-slate-900">
+          <Trophy className="h-5 w-5 text-amber-500" />
+          Ket qua phien dau gia
+        </h3>
       </div>
 
-      <div className="space-y-1 text-sm text-gray-600">
-        <p>Người thắng: {winnerName}</p>
-        <p>Giá cuối: {finalAmount.toLocaleString('vi-VN')} ₫</p>
-        <p>Kết thúc lúc: {timestamp}</p>
-      </div>
+      <div className="space-y-4 p-5">
+        <div className="rounded-[20px] border border-amber-200 bg-white px-4 py-5 text-center">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+            Gia chot cuoi
+          </p>
+          <p className="mt-2 text-3xl font-black text-slate-900">
+            {finalAmount.toLocaleString('vi-VN')} đ
+          </p>
+          <p className="mt-3 text-sm text-slate-500">Nguoi thang: {winnerName}</p>
+        </div>
 
-      <div className="space-y-2">
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Trạng thái phiên đấu giá
-        </label>
-        <input
-          value={
-            isCurrentUserWinner ? 'Bạn đã thắng phiên đấu giá' : 'Bạn đã không thắng phiên đấu giá'
-          }
-          readOnly
-          disabled
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600"
-        />
+        <div className="rounded-[20px] bg-slate-50 px-4 py-4 text-sm text-slate-600">
+          <p>
+            <span className="font-medium text-slate-900">Thoi diem ket thuc:</span> {timestamp}
+          </p>
+          <p className="mt-2">
+            <span className="font-medium text-slate-900">Trang thai cua ban:</span>{' '}
+            {isCurrentUserWinner ? 'Ban da thang phien nay.' : 'Ban khong phai nguoi chien thang.'}
+          </p>
+        </div>
 
-        <a
-          href="/"
-          className="w-full h-12 bg-emerald-600 text-white font-bold rounded-lg hover:bg-emerald-700 transition-colors flex items-center justify-center"
+        <Link
+          to="/auctions"
+          className="flex h-12 items-center justify-center rounded-2xl bg-slate-900 text-sm font-semibold text-white transition hover:bg-slate-800"
         >
-          Về trang chủ
-        </a>
+          Quay lai danh sach dau gia
+        </Link>
       </div>
-    </div>
+    </section>
   );
 }
