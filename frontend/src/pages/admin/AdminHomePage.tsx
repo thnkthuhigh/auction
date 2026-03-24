@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { ClipboardCheck, CalendarClock } from 'lucide-react';
+import { ClipboardCheck, CalendarClock, Users } from 'lucide-react';
 
 export default function AdminHomePage() {
   return (
@@ -11,7 +11,7 @@ export default function AdminHomePage() {
         </p>
       </section>
 
-      <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <article className="rounded-xl border border-slate-200 bg-white p-4">
           <div className="flex items-center gap-2">
             <ClipboardCheck className="h-4 w-4 text-blue-600" />
@@ -41,6 +41,22 @@ export default function AdminHomePage() {
             className="inline-flex items-center gap-2 mt-3 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
           >
             Vao tao phien
+          </Link>
+        </article>
+
+        <article className="rounded-xl border border-slate-200 bg-white p-4">
+          <div className="flex items-center gap-2">
+            <Users className="h-4 w-4 text-blue-600" />
+            <h2 className="font-semibold text-slate-900">Quan ly user</h2>
+          </div>
+          <p className="text-sm text-slate-600 mt-2">
+            Theo doi danh sach user va khoa/mo tai khoan khi phat sinh vi pham.
+          </p>
+          <Link
+            to="/admin/users"
+            className="inline-flex items-center gap-2 mt-3 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+          >
+            Vao quan ly user
           </Link>
         </article>
       </section>

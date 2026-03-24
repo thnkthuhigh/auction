@@ -32,11 +32,16 @@ export async function authMiddleware(
 
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },
-      select: { id: true, email: true, username: true, role: true },
+      select: { id: true, email: true, username: true, role: true, isActive: true },
     });
 
     if (!user) {
       res.status(401).json({ success: false, message: 'Unauthorized: User not found' });
+      return;
+    }
+
+    if (!user.isActive) {
+      res.status(403).json({ success: false, message: 'Forbidden: Account is locked' });
       return;
     }
 
