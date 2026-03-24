@@ -16,9 +16,10 @@ enum Role {
 }
 
 enum AuctionStatus {
-  PENDING // Chưa bắt đầu
-  ACTIVE // Đang diễn ra
-  ENDED // Đã kết thúc
+  PENDING   // Bản nháp – chờ seller gửi duyệt
+  REVIEW    // Đã gửi – chờ admin duyệt
+  ACTIVE    // Đang diễn ra
+  ENDED     // Đã kết thúc
   CANCELLED // Đã huỷ
 }
 

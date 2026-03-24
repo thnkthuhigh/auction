@@ -20,13 +20,15 @@ interface Props {
 
 const statusColors = {
   PENDING: 'bg-amber-100 text-amber-800',
+  REVIEW: 'bg-blue-100 text-blue-800',
   ACTIVE: 'bg-emerald-100 text-emerald-800',
   ENDED: 'bg-slate-200 text-slate-700',
   CANCELLED: 'bg-rose-100 text-rose-700',
 };
 
 const statusLabels = {
-  PENDING: 'Sắp diễn ra',
+  PENDING: 'Bản nháp',
+  REVIEW: 'Chờ duyệt',
   ACTIVE: 'Đang đấu giá',
   ENDED: 'Đã kết thúc',
   CANCELLED: 'Đã huỷ',
