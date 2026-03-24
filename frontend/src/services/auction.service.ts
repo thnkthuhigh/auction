@@ -16,6 +16,10 @@ export interface CreateAuctionSessionPayload {
   minBidStep: number;
 }
 
+export interface CancelAuctionSessionPayload {
+  reason?: string;
+}
+
 export interface AdminReviewQueueItem {
   id: string;
   title: string;
@@ -48,6 +52,28 @@ export interface AdminReviewQueueItem {
   };
 }
 
+export interface AdminMonitoringSummary {
+  totalAuctions: number;
+  pendingAuctions: number;
+  activeAuctions: number;
+  endedAuctions: number;
+  cancelledAuctions: number;
+  pendingReviewProducts: number;
+  totalBids: number;
+  bidsLast24h: number;
+  staleActiveAuctions: number;
+  upcomingStarts24h: number;
+}
+
+export interface AdminMonitoringResponse {
+  summary: AdminMonitoringSummary;
+  data: AdminReviewQueueItem[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
 export const auctionService = {
   getAuctions: async (filters: AuctionFilters = {}): Promise<PaginatedResponse<Auction>> => {
     const res = await api.get('/auctions', { params: filters });
@@ -66,6 +92,13 @@ export const auctionService = {
 
   deleteAuction: async (id: string): Promise<void> => {
     await api.delete(`/auctions/${id}`);
+  },
+
+  getMyAuctions: async (
+    filters: { status?: string; page?: number; limit?: number } = {},
+  ): Promise<PaginatedResponse<Auction>> => {
+    const res = await api.get('/auctions/my', { params: filters });
+    return res.data;
   },
 
   getCategories: async (): Promise<Category[]> => {
@@ -95,6 +128,23 @@ export const auctionService = {
     return res.data;
   },
 
+  getAdminMonitoring: async (
+    params: {
+      page?: number;
+      limit?: number;
+      search?: string;
+      status?: 'PENDING' | 'ACTIVE' | 'ENDED' | 'CANCELLED';
+      reviewStatus?: 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED' | 'CHANGES_REQUESTED';
+      sortBy?: 'updatedAt' | 'createdAt' | 'startTime' | 'endTime' | 'currentPrice';
+      sortOrder?: 'asc' | 'desc';
+    } = {},
+  ) => {
+    const res = await api.get<AdminMonitoringResponse>('/auctions/admin/monitoring', {
+      params,
+    });
+    return res.data;
+  },
+
   reviewAuction: async (
     auctionId: string,
     payload: { action: ReviewAuctionAction; note?: string },
@@ -109,6 +159,22 @@ export const auctionService = {
   createAuctionSession: async (auctionId: string, payload: CreateAuctionSessionPayload) => {
     const res = await api.patch<{ data: AdminReviewQueueItem }>(
       `/auctions/${auctionId}/session`,
+      payload,
+    );
+    return res.data.data;
+  },
+
+  updateAuctionSessionConfig: async (auctionId: string, payload: CreateAuctionSessionPayload) => {
+    const res = await api.patch<{ data: AdminReviewQueueItem }>(
+      `/auctions/${auctionId}/session-config`,
+      payload,
+    );
+    return res.data.data;
+  },
+
+  cancelAuctionSession: async (auctionId: string, payload: CancelAuctionSessionPayload = {}) => {
+    const res = await api.patch<{ data: AdminReviewQueueItem }>(
+      `/auctions/${auctionId}/session/cancel`,
       payload,
     );
     return res.data.data;

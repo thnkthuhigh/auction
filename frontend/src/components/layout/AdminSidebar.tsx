@@ -1,5 +1,12 @@
 import { Link, NavLink } from 'react-router-dom';
-import { LayoutDashboard, ClipboardCheck, CalendarClock, PlusCircle, Users } from 'lucide-react';
+import {
+  LayoutDashboard,
+  ClipboardCheck,
+  CalendarClock,
+  PlusCircle,
+  Users,
+  Activity,
+} from 'lucide-react';
 
 const menuItems = [
   {
@@ -26,17 +33,25 @@ const menuItems = [
     icon: Users,
     description: 'AS-61',
   },
+  {
+    label: 'Giam sat he thong',
+    path: '/admin/monitoring',
+    icon: Activity,
+    description: 'AS-60',
+  },
 ];
 
 export default function AdminSidebar() {
   return (
     <aside className="h-full border-r border-slate-200 bg-white">
-      <div className="px-4 py-4 border-b border-slate-100">
-        <p className="text-xs uppercase tracking-wide font-semibold text-slate-500">Admin Panel</p>
-        <h2 className="text-lg font-bold text-slate-900 mt-1">Quan tri dau gia</h2>
+      <div className="border-b border-slate-100 px-4 py-4">
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+          Admin Panel
+        </p>
+        <h2 className="mt-1 text-lg font-bold text-slate-900">Quan tri dau gia</h2>
       </div>
 
-      <nav className="p-3 space-y-1">
+      <nav className="space-y-1 p-3">
         {menuItems.map((item) => {
           const Icon = item.icon;
           return (
@@ -50,10 +65,10 @@ export default function AdminSidebar() {
               }
             >
               <div className="flex items-start gap-3">
-                <Icon className="h-4 w-4 mt-0.5" />
+                <Icon className="mt-0.5 h-4 w-4" />
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold truncate">{item.label}</p>
-                  <p className="text-xs text-slate-500 mt-0.5">{item.description}</p>
+                  <p className="truncate text-sm font-semibold">{item.label}</p>
+                  <p className="mt-0.5 text-xs text-slate-500">{item.description}</p>
                 </div>
               </div>
             </NavLink>
@@ -62,12 +77,12 @@ export default function AdminSidebar() {
       </nav>
 
       <div className="px-3 pb-3">
-        <p className="text-[11px] uppercase tracking-wide font-semibold text-slate-500 px-3 mb-2">
+        <p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
           Tien ich
         </p>
         <Link
           to="/admin/sessions"
-          className="flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2.5 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+          className="flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700"
         >
           <PlusCircle className="h-4 w-4" />
           Cau hinh phien

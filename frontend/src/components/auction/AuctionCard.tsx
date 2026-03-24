@@ -15,7 +15,7 @@ const statusColors = {
 };
 
 const statusLabels = {
-  PENDING: 'Sắp diễn ra',
+  PENDING: 'Chờ duyệt',
   ACTIVE: 'Đang đấu giá',
   ENDED: 'Đã kết thúc',
   CANCELLED: 'Đã huỷ',
