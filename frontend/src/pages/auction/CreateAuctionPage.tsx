@@ -7,6 +7,7 @@ import { auctionService } from '@/services/auction.service';
 import toast from 'react-hot-toast';
 import { PlusCircle, ImageIcon } from 'lucide-react';
 import type { CreateAuctionDTO } from '@auction/shared';
+import ImageUpload from '@/components/common/ImageUpload';
 
 const schema = z.object({
   title: z.string().min(3, 'Tối thiểu 3 ký tự').max(200),
@@ -34,13 +35,14 @@ export default function CreateAuctionPage() {
   const {
     register,
     handleSubmit,
+    setValue,
     control,
     formState: { errors },
   } = useForm<CreateAuctionDTO>({
     resolver: zodResolver(schema),
   });
 
-  const imageUrlValue = useWatch({ control, name: 'imageUrl' });
+  const imageUrl = useWatch({ control, name: 'imageUrl' });
   const minDatetime = new Date().toISOString().slice(0, 16);
 
   const mutation = useMutation({
@@ -99,21 +101,20 @@ export default function CreateAuctionPage() {
             )}
           </div>
 
-          {/* Image URL */}
+          {/* Image Upload */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">URL ảnh</label>
-            <input
-              {...register('imageUrl')}
-              type="url"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="https://..."
+            <label className="block text-sm font-medium text-gray-700 mb-1">Hình ảnh sản phẩm</label>
+            <ImageUpload
+              value={imageUrl || ''}
+              onChange={(url) => setValue('imageUrl', url, { shouldValidate: true })}
+              onClear={() => setValue('imageUrl', '', { shouldValidate: true })}
             />
             {errors.imageUrl && (
               <p className="text-red-500 text-xs mt-1">{errors.imageUrl.message}</p>
             )}
-            {imageUrlValue && !errors.imageUrl ? (
+            {imageUrl && !errors.imageUrl ? (
               <img
-                src={imageUrlValue}
+                src={imageUrl}
                 alt="Xem trước ảnh sản phẩm"
                 className="mt-2 w-full h-40 object-cover rounded-lg border border-gray-200"
                 onError={(e) => {
