@@ -1,4 +1,4 @@
-import { Response, NextFunction } from 'express';
+import { type Response, type NextFunction } from 'express';
 import * as userService from './user.service';
 import type { AuthenticatedRequest } from '../../middlewares/auth.middleware';
 
