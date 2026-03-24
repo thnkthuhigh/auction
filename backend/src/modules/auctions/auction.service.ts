@@ -12,14 +12,56 @@ import type {
   UpdateAuctionInput,
 } from './auction.schema';
 
-function formatAuction(a: Record<string, unknown> & { _count?: { bids: number } }) {
+const PUBLIC_AUCTION_STATUSES: AuctionStatus[] = ['PENDING', 'ACTIVE', 'ENDED', 'CANCELLED'];
+
+type AuctionUserSummary = {
+  id: string;
+  username: string;
+  avatar?: string | null;
+  email?: string;
+};
+
+type AuctionCategorySummary = {
+  id: string;
+  name: string;
+  slug: string;
+};
+
+type AuctionFormatterInput = Record<string, unknown> & {
+  startPrice: Prisma.Decimal | number;
+  currentPrice: Prisma.Decimal | number;
+  minBidStep: Prisma.Decimal | number;
+  seller?: AuctionUserSummary | null;
+  winner?: AuctionUserSummary | null;
+  reviewedBy?: AuctionUserSummary | null;
+  category?: AuctionCategorySummary | null;
+  _count?: { bids: number };
+};
+
+function formatAuction<T extends AuctionFormatterInput>({
+  _count,
+  seller,
+  winner,
+  reviewedBy,
+  category,
+  startPrice,
+  currentPrice,
+  minBidStep,
+  ...auction
+}: T) {
   return {
-    ...a,
-    startPrice: Number(a.startPrice),
-    currentPrice: Number(a.currentPrice),
-    minBidStep: Number(a.minBidStep),
-    totalBids: a._count?.bids ?? 0,
-    _count: undefined,
+    ...auction,
+    startPrice: Number(startPrice),
+    currentPrice: Number(currentPrice),
+    minBidStep: Number(minBidStep),
+    seller,
+    winner,
+    reviewedBy,
+    category,
+    sellerUsername: seller?.username ?? '',
+    winnerUsername: winner?.username,
+    categoryName: category?.name ?? '',
+    totalBids: _count?.bids ?? 0,
   };
 }
 
@@ -76,9 +118,7 @@ export async function getMyAuctions(
   ]);
 
   return {
-    data: auctions.map((auction) =>
-      formatAuction(auction as Record<string, unknown> & { _count?: { bids: number } }),
-    ),
+    data: auctions.map((auction) => formatAuction(auction)),
     total,
     page,
     limit,
@@ -104,15 +144,28 @@ export async function getAuctions(filters: {
     sortBy = 'createdAt',
     sortOrder = 'desc',
   } = filters;
+
+  if (status === 'REVIEW') {
+    return {
+      data: [],
+      total: 0,
+      page,
+      limit,
+      totalPages: 0,
+    };
+  }
+
   const skip = (page - 1) * limit;
 
-  const where = {
-    ...(status && { status }),
+  const normalizedSearch = search?.trim();
+  const where: Prisma.AuctionWhereInput = {
+    reviewStatus: 'APPROVED',
+    status: status ? status : { in: PUBLIC_AUCTION_STATUSES },
     ...(categoryId && { categoryId }),
-    ...(search && {
+    ...(normalizedSearch && {
       OR: [
-        { title: { contains: search, mode: 'insensitive' as const } },
-        { description: { contains: search, mode: 'insensitive' as const } },
+        { title: { contains: normalizedSearch, mode: 'insensitive' } },
+        { description: { contains: normalizedSearch, mode: 'insensitive' } },
       ],
     }),
   };
@@ -157,7 +210,7 @@ export async function getAuctionById(id: string) {
   });
 
   if (!auction) throw new AppError('Auction not found', 404);
-  return formatAuction(auction as Record<string, unknown> & { _count?: { bids: number } });
+  return formatAuction(auction);
 }
 
 export async function createAuction(sellerId: string, input: CreateAuctionInput) {
@@ -193,7 +246,7 @@ export async function createAuction(sellerId: string, input: CreateAuctionInput)
     },
   });
 
-  return formatAuction(auction as Record<string, unknown> & { _count?: { bids: number } });
+  return formatAuction(auction);
 }
 
 export async function createAuctionSession(auctionId: string, input: CreateAuctionSessionInput) {
@@ -243,7 +296,7 @@ export async function createAuctionSession(auctionId: string, input: CreateAucti
   await redis.set(REDIS_KEYS.auctionCurrentPrice(auctionId), input.startPrice);
   await redis.del(REDIS_KEYS.auctionBidCount(auctionId));
 
-  return formatAuction(updated as Record<string, unknown> & { _count?: { bids: number } });
+  return formatAuction(updated);
 }
 
 export async function updateAuctionSessionConfig(
@@ -300,7 +353,7 @@ export async function updateAuctionSessionConfig(
   await redis.set(REDIS_KEYS.auctionCurrentPrice(auctionId), input.startPrice);
   await redis.del(REDIS_KEYS.auctionBidCount(auctionId));
 
-  return formatAuction(updated as Record<string, unknown> & { _count?: { bids: number } });
+  return formatAuction(updated);
 }
 
 export async function cancelAuctionSession(auctionId: string, _input?: CancelAuctionSessionInput) {
@@ -335,7 +388,7 @@ export async function cancelAuctionSession(auctionId: string, _input?: CancelAuc
   await redis.del(REDIS_KEYS.auctionCurrentPrice(auctionId));
   await redis.del(REDIS_KEYS.auctionBidCount(auctionId));
 
-  return formatAuction(updated as Record<string, unknown> & { _count?: { bids: number } });
+  return formatAuction(updated);
 }
 
 export async function getAdminMonitoring(params: AdminMonitoringParams) {
@@ -428,9 +481,7 @@ export async function getAdminMonitoring(params: AdminMonitoringParams) {
       staleActiveAuctions: staleActive,
       upcomingStarts24h: upcomingStarts,
     },
-    data: items.map((item) =>
-      formatAuction(item as Record<string, unknown> & { _count?: { bids: number } }),
-    ),
+    data: items.map((item) => formatAuction(item)),
     total,
     page,
     limit,
@@ -458,7 +509,7 @@ export async function updateAuction(id: string, sellerId: string, input: UpdateA
     },
   });
 
-  return formatAuction(updated as Record<string, unknown> & { _count?: { bids: number } });
+  return formatAuction(updated);
 }
 
 export async function deleteAuction(id: string, sellerId: string, isAdmin: boolean) {
@@ -489,7 +540,7 @@ export async function submitAuctionForReview(id: string, sellerId: string) {
     },
   });
 
-  return formatAuction(updated as Record<string, unknown> & { _count?: { bids: number } });
+  return formatAuction(updated);
 }
 
 export async function getCategories() {
@@ -526,9 +577,7 @@ export async function getReviewQueue(params: { page?: number; limit?: number }) 
   ]);
 
   return {
-    data: items.map((item) =>
-      formatAuction(item as Record<string, unknown> & { _count?: { bids: number } }),
-    ),
+    data: items.map((item) => formatAuction(item)),
     total,
     page,
     limit,
@@ -570,5 +619,5 @@ export async function reviewAuction(
     },
   });
 
-  return formatAuction(updated as Record<string, unknown> & { _count?: { bids: number } });
+  return formatAuction(updated);
 }

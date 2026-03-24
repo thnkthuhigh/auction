@@ -96,7 +96,8 @@ export async function deleteAuction(req: AuthenticatedRequest, res: Response, ne
 
 export async function submitAuction(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   try {
-    const data = await auctionService.submitAuctionForReview(req.params.id, req.user!.id);
+    const user = requireUser(req);
+    const data = await auctionService.submitAuctionForReview(req.params.id, user.id);
     res.json({ success: true, data, message: 'Gửi duyệt thành công' });
   } catch (error) {
     next(error);
