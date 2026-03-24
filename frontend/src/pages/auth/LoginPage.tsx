@@ -1,10 +1,12 @@
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Link } from 'react-router-dom';
 import { Gavel } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
-import type { LoginDTO } from '@auction/shared';
+import type { ApiResponse, LoginDTO } from '@auction/shared';
+import type { AxiosError } from 'axios';
 
 const schema = z.object({
   email: z.string().email('Email không hợp lệ'),
@@ -15,14 +17,55 @@ const schema = z.object({
  * TV4 phụ trách trang này
  */
 export default function LoginPage() {
-  const { login, isLoggingIn } = useAuth();
+  const { loginAsync, isLoggingIn } = useAuth();
+  const [submitError, setSubmitError] = useState('');
+  const inputClassName =
+    'w-full px-3 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed';
 
   const {
     register,
     handleSubmit,
+    setError,
+    clearErrors,
     formState: { errors },
   } = useForm<LoginDTO>({
     resolver: zodResolver(schema),
+    defaultValues: {
+      email: '',
+      password: '',
+    },
+  });
+
+  const onSubmit = handleSubmit(async (data) => {
+    setSubmitError('');
+    clearErrors(['email', 'password']);
+
+    try {
+      await loginAsync({
+        email: data.email.trim(),
+        password: data.password,
+      });
+    } catch (error) {
+      const apiError = error as AxiosError<ApiResponse>;
+      const message = apiError.response?.data?.message || 'Đăng nhập thất bại';
+      const fieldErrors = apiError.response?.data?.errors;
+      const emailError = fieldErrors?.email?.[0];
+      const passwordError = fieldErrors?.password?.[0];
+
+      if (emailError) {
+        setError('email', { type: 'server', message: emailError });
+      }
+
+      if (passwordError) {
+        setError('password', { type: 'server', message: passwordError });
+      }
+
+      if (emailError || passwordError) {
+        return;
+      }
+
+      setSubmitError(message);
+    }
   });
 
   return (
@@ -36,30 +79,46 @@ export default function LoginPage() {
           <p className="text-gray-500 mt-1">Chào mừng trở lại AuctionHub</p>
         </div>
 
-        <form onSubmit={handleSubmit((data) => login(data))} className="space-y-4">
+        <form onSubmit={onSubmit} className="space-y-4" noValidate>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+              Email
+            </label>
             <input
-              {...register('email')}
+              {...register('email', {
+                setValueAs: (value: string) => value.trim(),
+              })}
+              id="email"
               type="email"
               placeholder="you@example.com"
-              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              autoComplete="email"
+              aria-invalid={Boolean(errors.email)}
+              disabled={isLoggingIn}
+              className={`${inputClassName} ${errors.email ? 'border-red-400 focus:ring-red-500' : 'border-gray-300'}`}
             />
             {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>}
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Mật khẩu</label>
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+              Mật khẩu
+            </label>
             <input
               {...register('password')}
+              id="password"
               type="password"
               placeholder="••••••••"
-              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              autoComplete="current-password"
+              aria-invalid={Boolean(errors.password)}
+              disabled={isLoggingIn}
+              className={`${inputClassName} ${errors.password ? 'border-red-400 focus:ring-red-500' : 'border-gray-300'}`}
             />
             {errors.password && (
               <p className="text-red-500 text-xs mt-1">{errors.password.message}</p>
             )}
           </div>
+
+          {submitError && <p className="text-red-500 text-sm">{submitError}</p>}
 
           <button
             type="submit"
