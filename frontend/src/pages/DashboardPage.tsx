@@ -2,6 +2,7 @@ import { useMemo, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@/store/auth.store';
 import { userService, type MyBidItem } from '@/services/user.service';
+import { auctionService } from '@/services/auction.service';
 import { LayoutDashboard, Gavel, Trophy, Wallet, Clock3 } from 'lucide-react';
 
 /**
@@ -15,12 +16,34 @@ export default function DashboardPage() {
     queryFn: () => userService.getMyBids({ limit: 100 }),
   });
 
-  const buyerStats = {
-    createdAuctions: 0,
-    totalBids: 25,
-    wonAuctions: 3,
-    balance: '75.000.000 đ',
-  };
+  const { data: myAuctions, isLoading: auctionsLoading } = useQuery({
+    queryKey: ['my-auctions'],
+    queryFn: () => auctionService.getMyAuctions(),
+  });
+
+  const buyerStats = useMemo(() => {
+    const bids = myBidsResponse?.data ?? [];
+    const auctions = myAuctions?.data ?? myAuctions ?? [];
+
+    const latestBidByAuction = new Map<string, MyBidItem>();
+    for (const bid of bids) {
+      if (!latestBidByAuction.has(bid.auctionId)) {
+        latestBidByAuction.set(bid.auctionId, bid);
+      }
+    }
+
+    const uniqueAuctionBids = Array.from(latestBidByAuction.values());
+    const wonAuctions = uniqueAuctionBids.filter(
+      (bid) => bid.auction.status === 'ENDED' && bid.auction.winnerId === user?.id,
+    ).length;
+
+    return {
+      createdAuctions: Array.isArray(auctions) ? auctions.length : 0,
+      totalBids: bids.length,
+      wonAuctions,
+      balance: formatCurrencyVnd(Number(user?.balance ?? 0)),
+    };
+  }, [myBidsResponse?.data, myAuctions, user?.id, user?.balance]);
 
   const personalBidHistory: Array<{
     id: string;
@@ -57,30 +80,28 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center gap-2">
         <LayoutDashboard className="h-6 w-6 text-blue-600" />
         <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <StatCard
           icon={<Gavel className="h-5 w-5 text-blue-600" />}
           label="Đấu giá đã tạo"
-          value={buyerStats.createdAuctions}
+          value={auctionsLoading ? '...' : buyerStats.createdAuctions}
           bg="bg-blue-50"
         />
         <StatCard
           icon={<Gavel className="h-5 w-5 text-purple-600" />}
           label="Lượt đặt giá"
-          value={buyerStats.totalBids}
+          value={myBidsLoading ? '...' : buyerStats.totalBids}
           bg="bg-purple-50"
         />
         <StatCard
           icon={<Trophy className="h-5 w-5 text-yellow-600" />}
           label="Phiên đã thắng"
-          value={buyerStats.wonAuctions}
+          value={myBidsLoading ? '...' : buyerStats.wonAuctions}
           bg="bg-yellow-50"
         />
         <StatCard
@@ -91,12 +112,12 @@ export default function DashboardPage() {
         />
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
         <div className="flex items-center gap-2">
           <h2 className="text-lg font-semibold text-gray-900">Đấu giá gần đây</h2>
         </div>
 
-        <div className="xl:col-span-1 space-y-3">
+        <div className="space-y-3 xl:col-span-1">
           <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
             <h3 className="text-base font-semibold text-gray-900">
               iPhone 15 Pro Max 256GB - VN/A
@@ -109,11 +130,11 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div className="xl:col-span-2 space-y-3">
+        <div className="space-y-3 xl:col-span-2">
           <h2 className="text-lg font-semibold text-gray-900">Lịch sử đấu giá cá nhân</h2>
           <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
             <div className="overflow-x-auto">
-              <table className="min-w-full text-sm text-left text-gray-700">
+              <table className="min-w-full text-left text-sm text-gray-700">
                 <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
                   <tr>
                     <th className="px-4 py-3 font-semibold">Tên sản phẩm</th>
@@ -172,7 +193,7 @@ function StatCard({
   bg: string;
 }) {
   return (
-    <div className={`${bg} rounded-xl p-4 space-y-1`}>
+    <div className={`${bg} space-y-1 rounded-xl p-4`}>
       <div className="flex items-center gap-2">
         {icon}
         <span className="text-xs text-gray-500">{label}</span>

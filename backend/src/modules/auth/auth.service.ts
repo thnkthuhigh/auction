@@ -7,7 +7,8 @@ import { AppError } from '../../middlewares/error.middleware';
 import type { RegisterInput, LoginInput } from './auth.schema';
 
 const SALT_ROUNDS = 12;
-const DUMMY_PASSWORD_HASH = '$2a$12$C6UzMDM.H6dfI/f/IKcEeO5I7iV6czS4QhIwTZYBFvTo95z0yn7G6';
+const DUMMY_PASSWORD_HASH =
+  '$2a$12$C6UzMDM.H6dfI/f/IKcEeO5I7iV6czS4QhIwTZYBFvTo95z0yn7G6';
 
 function requireEnv(name: 'JWT_SECRET' | 'JWT_REFRESH_SECRET'): string {
   const value = process.env[name];
@@ -26,9 +27,11 @@ function generateTokens(userId: string) {
   const accessToken = jwt.sign({ userId }, requireEnv('JWT_SECRET'), {
     expiresIn: accessExpiresIn,
   });
+
   const refreshToken = jwt.sign({ userId }, requireEnv('JWT_REFRESH_SECRET'), {
     expiresIn: refreshExpiresIn,
   });
+
   return { accessToken, refreshToken };
 }
 
@@ -141,10 +144,13 @@ export async function refreshAccessToken(refreshToken: string) {
     const decoded = jwt.verify(refreshToken, requireEnv('JWT_REFRESH_SECRET')) as {
       userId: string;
     };
+
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },
     });
+
     if (!user) throw new AppError('User not found', 401);
+
     const tokens = generateTokens(user.id);
     return tokens;
   } catch {
