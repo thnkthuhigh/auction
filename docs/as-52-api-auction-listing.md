@@ -1,22 +1,26 @@
-# AS-52 API Auction Listing - Giai thich flow code
+# AS-52 API Auction Listing - Giai thich flow tu FE toi BE
 
 Tai lieu nay duoc viet theo kieu "doc code de hieu code".
-Muc tieu la giai thich API danh sach dau gia dang chay nhu the nao, de khi nhin vao code ban biet:
+Muc tieu la giai thich mot flow cu the:
 
-1. Frontend goi API tu dau
-2. Request di qua route nao cua backend
+- buyer mo trang danh sach dau gia
+- frontend goi API danh sach
+- backend nhan query, xu ly logic, query DB
+- backend format response roi tra nguoc ve frontend
+
+De khi nhin vao code ban biet:
+
+1. API duoc goi tu dau
+2. Route backend nao nhan request
 3. Controller xu ly query ra sao
-4. Service backend dang loc du lieu theo rule nao
+4. Service backend dang loc va sort du lieu theo rule nao
 5. Response tra ve frontend co shape gi
-
-Tai lieu nay khong co gang giai thich moi ky tu.
-No tap trung vao flow "buyer xem danh sach san pham" va "API listing giao tiep voi FE qua dau".
 
 ---
 
 ## Part 1. Nhin tong the truoc
 
-Flow cua chuc nang listing:
+Flow cua chuc nang danh sach dau gia:
 
 ```text
 /auctions
@@ -28,13 +32,13 @@ Flow cua chuc nang listing:
   -> auctionRoutes.get('/')
   -> auctionController.getAuctions
   -> auctionService.getAuctions
-  -> prisma.auction.findMany(...)
+  -> prisma.auction.findMany + prisma.auction.count
   -> formatAuction(...)
   -> res.json({ success: true, data, total, page, limit, totalPages })
   -> frontend render AuctionCard
 ```
 
-Neu nho duoc luong nay thi ban se biet API dang duoc goi qua dau va di den dau.
+Neu nho duoc flow nay thi ban se biet API dang giao tiep qua dau.
 
 ---
 
@@ -42,11 +46,11 @@ Neu nho duoc luong nay thi ban se biet API dang duoc goi qua dau va di den dau.
 
 ### 2.1. Route render trang danh sach
 
-File lien quan:
+File:
 
 - `frontend/src/App.tsx`
 
-Doan code chinh:
+Doan lien quan:
 
 ```tsx
 <Route path="/" element={<AuctionListPage />} />
@@ -55,18 +59,18 @@ Doan code chinh:
 
 Y nghia:
 
-- vao `/` hoac `/auctions`
+- khi vao `/` hoac `/auctions`
 - React Router render `AuctionListPage`
 
 ---
 
-### 2.2. `AuctionListPage` dung React Query
+### 2.2. Page danh sach goi service
 
-File lien quan:
+File:
 
 - `frontend/src/pages/auction/AuctionListPage.tsx`
 
-Doan code chinh:
+Doan chinh:
 
 ```tsx
 const { data } = useQuery({
@@ -85,22 +89,24 @@ const { data } = useQuery({
 
 Y nghia:
 
-- `useQuery` la noi page quyet dinh luc nao can goi API
-- khi user doi search, status, category, sort, page
-- query se goi lai `auctionService.getAuctions(...)`
+- `useQuery` la noi page quyet dinh "goi API"
+- moi lan `search`, `status`, `categoryId`, `sortBy`, `sortOrder`, `page` doi
+- React Query se goi lai `auctionService.getAuctions(...)`
 
-Page khong tu dung `fetch`.
-No goi qua service de tach UI va networking.
+Noi cach khac:
+
+- page khong goi `fetch` truc tiep
+- page goi qua `auctionService`
 
 ---
 
 ### 2.3. Service frontend goi HTTP request
 
-File lien quan:
+File:
 
 - `frontend/src/services/auction.service.ts`
 
-Doan code:
+Doan chinh:
 
 ```ts
 getAuctions: async (filters: AuctionFilters = {}): Promise<PaginatedResponse<Auction>> => {
@@ -111,8 +117,8 @@ getAuctions: async (filters: AuctionFilters = {}): Promise<PaginatedResponse<Auc
 
 Y nghia:
 
-- FE gui `GET /auctions`
-- `filters` se thanh query string
+- frontend gui `GET /auctions`
+- `filters` duoc dua vao query string
 
 Vi du:
 
@@ -122,13 +128,13 @@ GET /api/auctions?status=ACTIVE&page=1&sortBy=createdAt&sortOrder=desc
 
 ---
 
-### 2.4. `api.service.ts` noi voi backend
+### 2.4. `api.service.ts` gan base URL
 
-File lien quan:
+File:
 
 - `frontend/src/services/api.service.ts`
 
-Doan code:
+Doan chinh:
 
 ```ts
 const api = axios.create({
@@ -138,14 +144,14 @@ const api = axios.create({
 
 Y nghia:
 
-- neu `.env` co `VITE_API_URL=http://localhost:3001/api`
-- thi `api.get('/auctions')` that su goi:
+- neu `VITE_API_URL=http://localhost:3001/api`
+- thi `api.get('/auctions')` se thanh:
 
 ```text
 http://localhost:3001/api/auctions
 ```
 
-Day la diem FE "di ra ngoai" de giao tiep voi backend.
+Day la diem frontend "di ra ngoai" de giao tiep voi backend.
 
 ---
 
@@ -153,11 +159,11 @@ Day la diem FE "di ra ngoai" de giao tiep voi backend.
 
 ### 3.1. `app.ts` mount module auctions
 
-File lien quan:
+File:
 
 - `backend/src/app.ts`
 
-Doan code:
+Doan chinh:
 
 ```ts
 app.use('/api/auctions', auctionRoutes);
@@ -170,13 +176,13 @@ Y nghia:
 
 ---
 
-### 3.2. `auction.routes.ts` map den controller
+### 3.2. `auction.routes.ts` map route den controller
 
-File lien quan:
+File:
 
 - `backend/src/modules/auctions/auction.routes.ts`
 
-Doan code:
+Doan chinh:
 
 ```ts
 auctionRoutes.get('/', auctionController.getAuctions);
@@ -188,17 +194,17 @@ Y nghia:
 - `GET /api/auctions` -> `auctionController.getAuctions`
 - `GET /api/auctions/categories` -> `auctionController.getCategories`
 
-Neu muon tim "API nay vao backend o dau" thi route la noi can xem truoc.
+Neu muon tim "route nao nhan API" thi day la noi can nhin dau tien.
 
 ---
 
 ## Part 4. Controller lam gi
 
-File lien quan:
+File:
 
 - `backend/src/modules/auctions/auction.controller.ts`
 
-Doan code chinh:
+Doan chinh:
 
 ```ts
 export async function getAuctions(req, res, next) {
@@ -220,19 +226,19 @@ export async function getAuctions(req, res, next) {
 
 Y nghia:
 
-- controller doc query string
+- controller doc `req.query`
 - doi `page`, `limit` tu string sang number
-- day du lieu xuong service
-- service xu ly xong thi tra nguoc JSON ve frontend
+- dua du lieu xuong service
+- service xu ly xong thi controller tra JSON ve client
 
-Controller o day mong.
-No khong chua business logic listing.
+Controller o day khong chua business logic lon.
+Business logic nam o service.
 
 ---
 
-## Part 5. Service backend xu ly nghiep vu
+## Part 5. Service backend xu ly nghiep vu gi
 
-File lien quan:
+File:
 
 - `backend/src/modules/auctions/auction.service.ts`
 
@@ -242,7 +248,7 @@ Ham quan trong:
 export async function getAuctions(filters) { ... }
 ```
 
-Day la noi xu ly business rules cua listing.
+Phan nay la "trai tim" cua `AS-52`.
 
 ---
 
@@ -258,7 +264,7 @@ Service nhan cac input:
 - `sortBy`
 - `sortOrder`
 
-Sau do build `where` cho Prisma.
+Service build `where` cho Prisma.
 
 Neu co `search`:
 
@@ -287,13 +293,13 @@ Neu FE gui `sortBy` linh tinh:
 Pagination:
 
 - `skip = (page - 1) * limit`
-- `take = limit`
+- Prisma `take = limit`
 
 ---
 
 ### 5.2. Query DB bang Prisma
 
-Doan code chinh:
+Doan chinh:
 
 ```ts
 const [auctions, total] = await Promise.all([
@@ -304,7 +310,7 @@ const [auctions, total] = await Promise.all([
       category: { select: { id: true, name: true, slug: true } },
       _count: { select: { bids: true } },
     },
-    orderBy,
+    orderBy: { [validSortBy]: sortOrder },
     skip,
     take: limit,
   }),
@@ -315,10 +321,10 @@ const [auctions, total] = await Promise.all([
 Y nghia:
 
 - query 1 lay danh sach item
-- query 2 lay tong so item
-- chay song song cho nhanh hon
+- query 2 lay tong so ban ghi
+- chay song song bang `Promise.all`
 
-Backend lay kem:
+Data backend lay kem:
 
 - thong tin seller
 - thong tin category
@@ -341,7 +347,7 @@ Day la lop "chuan hoa du lieu" truoc khi response di ra ngoai.
 
 ---
 
-## Part 6. Response tra ve FE
+## Part 6. Response tra ve frontend nhu the nao
 
 Controller tra:
 
@@ -366,7 +372,7 @@ Frontend `AuctionListPage` dung `data.data` de render card.
 
 ---
 
-## Part 7. Flow categories
+## Part 7. Categories flow
 
 Ngoai danh sach item, page con goi category list:
 
@@ -380,31 +386,35 @@ AuctionListPage
   -> prisma.category.findMany(...)
 ```
 
+Endpoint nay hien dang tra toan bo category theo ten tang dan.
+
 Muc dich:
 
 - do select category tren UI
+- create auction page cung co the dung lai
 
 ---
 
 ## Part 8. Diem can nho nhat
 
 - FE goi API qua `frontend/src/services/auction.service.ts`
-- request di ra backend qua `frontend/src/services/api.service.ts`
+- request that su di ra backend qua `frontend/src/services/api.service.ts`
 - backend nhan request o `backend/src/app.ts`
 - route map o `backend/src/modules/auctions/auction.routes.ts`
 - controller doc query va goi service
 - service moi la noi xu ly rule listing that su
-- Prisma query DB
-- ket qua tra ve frontend de render danh sach
+- Prisma la lop query DB
+- `formatAuction(...)` la noi backend chuan hoa payload cho FE
 
 Neu can debug 1 request listing, thu tu doc nhanh nhat la:
 
-1. `AuctionListPage.tsx`
-2. `auction.service.ts` o frontend
-3. `api.service.ts`
-4. `app.ts`
-5. `auction.routes.ts`
-6. `auction.controller.ts`
-7. `auction.service.ts` o backend
+1. Network tab tren browser
+2. `AuctionListPage.tsx`
+3. `auction.service.ts` o frontend
+4. `api.service.ts`
+5. `app.ts`
+6. `auction.routes.ts`
+7. `auction.controller.ts`
+8. `auction.service.ts` o backend
 
-Neu nho duoc 7 diem nay, ban se biet API dang giao tiep qua dau.
+Neu nho duoc 8 diem nay, ban se biet API dang giao tiep qua dau.
