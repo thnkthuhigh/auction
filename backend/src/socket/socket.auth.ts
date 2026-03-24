@@ -1,4 +1,4 @@
-import { Socket } from 'socket.io';
+import { type Socket } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../config/database';
 import type {
@@ -7,6 +7,14 @@ import type {
   InterServerEvents,
   SocketData,
 } from '@auction/shared';
+
+function getJwtSecret(): string {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error('JWT_SECRET is not configured');
+  }
+  return secret;
+}
 
 export async function socketAuthMiddleware(
   socket: Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>,
@@ -20,7 +28,7 @@ export async function socketAuthMiddleware(
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as {
+    const decoded = jwt.verify(token, getJwtSecret()) as {
       userId: string;
     };
     const user = await prisma.user.findUnique({

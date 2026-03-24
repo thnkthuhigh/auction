@@ -7,11 +7,13 @@ import { useAuthStore } from '@/store/auth.store';
 import AuctionTimer from '@/components/auction/AuctionTimer';
 import BidForm from '@/components/auction/BidForm';
 import BidHistory from '@/components/auction/BidHistory';
+import WinnerCard from '@/components/auction/WinnerCard';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { Tag, User, Clock } from 'lucide-react';
 import { format } from 'date-fns';
 import { vi } from 'date-fns/locale';
 import { useEffect } from 'react';
+import type { Bid } from '@auction/shared';
 
 /**
  * TV5 phụ trách trang này
@@ -52,7 +54,26 @@ export default function AuctionDetailPage() {
   }
 
   const displayAuction = activeAuction ?? auction;
-  const allBids = liveBids.length > 0 ? liveBids : (bidsData?.data ?? []);
+  const initialBids = (bidsData?.data ?? []) as Bid[];
+  const allBids: Bid[] = liveBids.length > 0 ? liveBids : initialBids;
+  const now = Date.now();
+  const endTime = new Date(displayAuction.endTime).getTime();
+  const isCompleted = displayAuction.status === 'ENDED' || now > endTime;
+  const winnerBid =
+    allBids.length > 0
+      ? allBids.reduce((maxBid: Bid, currentBid: Bid) =>
+          currentBid.amount > maxBid.amount ? currentBid : maxBid,
+        )
+      : null;
+  const winnerName = winnerBid?.bidderUsername ?? displayAuction.winnerUsername;
+  const finalAmount = winnerBid?.amount ?? displayAuction.currentPrice;
+  const winnerUserId = winnerBid?.bidderId ?? displayAuction.winnerId;
+  const isCurrentUserWinner = Boolean(user?.id && winnerUserId && user.id === winnerUserId);
+  const winnerTimestamp = format(
+    new Date(winnerBid?.createdAt ?? displayAuction.endTime),
+    'HH:mm dd/MM/yyyy',
+    { locale: vi },
+  );
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -110,7 +131,7 @@ export default function AuctionDetailPage() {
           {/* Bid History */}
           <div className="bg-white rounded-xl border border-gray-200 p-6">
             <h2 className="font-semibold text-gray-900 mb-4">Lịch sử đặt giá ({allBids.length})</h2>
-            <BidHistory bids={allBids} currentUserId={user?.id} />
+            <BidHistory bids={allBids} currentUserId={user?.id} winnerBidId={winnerBid?.id} />
           </div>
         </div>
 
@@ -118,7 +139,14 @@ export default function AuctionDetailPage() {
         <div className="space-y-4">
           <AuctionTimer endTime={auction.endTime} status={displayAuction.status} />
 
-          {isAuthenticated && auction.sellerId !== user?.id ? (
+          {isCompleted && winnerName ? (
+            <WinnerCard
+              winnerName={winnerName}
+              finalAmount={finalAmount}
+              timestamp={winnerTimestamp}
+              isCurrentUserWinner={isCurrentUserWinner}
+            />
+          ) : isAuthenticated && auction.sellerId !== user?.id ? (
             <BidForm auction={displayAuction} onPlaceBid={placeBid} />
           ) : !isAuthenticated ? (
             <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-center text-sm text-yellow-700">
@@ -131,18 +159,6 @@ export default function AuctionDetailPage() {
           ) : (
             <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 text-center text-sm text-gray-500">
               Đây là đấu giá của bạn
-            </div>
-          )}
-
-          {/* Winner */}
-          {auction.status === 'ENDED' && auction.winnerUsername && (
-            <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-center">
-              <p className="text-green-700 font-semibold">
-                🏆 Người thắng: {auction.winnerUsername}
-              </p>
-              <p className="text-green-600 font-bold text-lg">
-                {displayAuction.currentPrice.toLocaleString('vi-VN')} ₫
-              </p>
             </div>
           )}
         </div>

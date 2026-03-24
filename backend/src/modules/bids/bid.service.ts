@@ -1,31 +1,55 @@
-import { type Prisma } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
 import { prisma } from '../../config/database';
 import { AppError } from '../../middlewares/error.middleware';
 import { redis, REDIS_KEYS } from '../../config/redis';
 import { getIO } from '../../socket/socket.server';
 
+function isAuctionExpired(endTime: Date): boolean {
+  return endTime.getTime() <= Date.now();
+}
+
 export async function placeBid(bidderId: string, auctionId: string, amount: number) {
-  // Validate auction exists and is active
   const auction = await prisma.auction.findUnique({
     where: { id: auctionId },
     include: { bids: { orderBy: { createdAt: 'desc' }, take: 1 } },
   });
 
   if (!auction) throw new AppError('Auction not found', 404);
-  if (auction.status !== 'ACTIVE') throw new AppError('Đấu giá không đang diễn ra');
-  if (auction.sellerId === bidderId)
-    throw new AppError('Không thể đặt giá cho đấu giá của chính mình');
-  if (new Date() > auction.endTime) throw new AppError('Đấu giá đã kết thúc');
+  if (auction.status !== 'ACTIVE') throw new AppError('Auction is not active');
+  if (auction.sellerId === bidderId) throw new AppError('Cannot bid on your own auction');
+  if (isAuctionExpired(auction.endTime)) throw new AppError('Auction has ended');
 
   const currentPrice = Number(auction.currentPrice);
   const minRequired = currentPrice + Number(auction.minBidStep);
 
   if (amount < minRequired) {
-    throw new AppError(`Giá thầu tối thiểu là ${minRequired.toLocaleString('vi-VN')} VNĐ`);
+    throw new AppError(`Minimum bid is ${minRequired.toLocaleString('vi-VN')} VND`);
   }
 
-  // Use DB transaction to prevent race conditions
   const [bid, updatedAuction] = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    const latestAuction = await tx.auction.findUnique({
+      where: { id: auctionId },
+      select: {
+        id: true,
+        status: true,
+        endTime: true,
+        currentPrice: true,
+        minBidStep: true,
+      },
+    });
+
+    if (!latestAuction) throw new AppError('Auction not found', 404);
+    if (latestAuction.status !== 'ACTIVE' || isAuctionExpired(latestAuction.endTime)) {
+      throw new AppError('Auction has ended');
+    }
+
+    const liveCurrentPrice = Number(latestAuction.currentPrice);
+    const liveMinRequired = liveCurrentPrice + Number(latestAuction.minBidStep);
+
+    if (amount < liveMinRequired) {
+      throw new AppError(`Minimum bid is ${liveMinRequired.toLocaleString('vi-VN')} VND`);
+    }
+
     const newBid = await tx.bid.create({
       data: { amount, bidderId, auctionId },
       include: {
@@ -41,11 +65,9 @@ export async function placeBid(bidderId: string, auctionId: string, amount: numb
     return [newBid, updated] as const;
   });
 
-  // Update Redis cache
   await redis.set(REDIS_KEYS.auctionCurrentPrice(auctionId), amount);
   await redis.incr(REDIS_KEYS.auctionBidCount(auctionId));
 
-  // Emit real-time event
   const io = getIO();
   const totalBids = await prisma.bid.count({ where: { auctionId } });
 
@@ -65,7 +87,6 @@ export async function placeBid(bidderId: string, auctionId: string, amount: numb
     totalBids,
   });
 
-  // Notify previous highest bidder
   const prevBid = auction.bids[0];
   if (prevBid && prevBid.bidderId !== bidderId) {
     io.to(`user:${prevBid.bidderId}`).emit('user:outbid', {
