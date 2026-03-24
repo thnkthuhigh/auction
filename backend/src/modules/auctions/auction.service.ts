@@ -492,42 +492,6 @@ export async function submitAuctionForReview(id: string, sellerId: string) {
   return formatAuction(updated as Record<string, unknown> & { _count?: { bids: number } });
 }
 
-export async function getMyAuctions(
-  sellerId: string,
-  filters: { status?: string; page?: number; limit?: number } = {},
-) {
-  const { status, page = 1, limit = 12 } = filters;
-  const skip = (page - 1) * limit;
-
-  const where: Prisma.AuctionWhereInput = {
-    sellerId,
-    ...(status && { status: status as AuctionStatus }),
-  };
-
-  const [auctions, total] = await Promise.all([
-    prisma.auction.findMany({
-      where,
-      include: {
-        seller: { select: { id: true, username: true, avatar: true } },
-        category: { select: { id: true, name: true, slug: true } },
-        _count: { select: { bids: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-      skip,
-      take: limit,
-    }),
-    prisma.auction.count({ where }),
-  ]);
-
-  return {
-    data: auctions.map((a) => formatAuction(a as Record<string, unknown> & { _count?: { bids: number } })),
-    total,
-    page,
-    limit,
-    totalPages: Math.ceil(total / limit),
-  };
-}
-
 export async function getCategories() {
   return prisma.category.findMany({ orderBy: { name: 'asc' } });
 }
