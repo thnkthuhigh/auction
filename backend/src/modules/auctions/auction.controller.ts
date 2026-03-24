@@ -1,6 +1,15 @@
 import type { Response, NextFunction } from 'express';
 import * as auctionService from './auction.service';
+import { AppError } from '../../middlewares/error.middleware';
 import type { AuthenticatedRequest } from '../../middlewares/auth.middleware';
+
+function requireUser(req: AuthenticatedRequest) {
+  if (!req.user) {
+    throw new AppError('Unauthorized', 401);
+  }
+
+  return req.user;
+}
 
 export async function getAuctions(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   try {
@@ -23,6 +32,25 @@ export async function getAuctions(req: AuthenticatedRequest, res: Response, next
   }
 }
 
+export async function getMyAuctions(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const user = requireUser(req);
+    const { status, page, limit } = req.query as Record<string, string>;
+    const data = await auctionService.getMyAuctions(user.id, {
+      status: status as never,
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
+    res.json({ success: true, ...data });
+  } catch (error) {
+    next(error);
+  }
+}
+
 export async function getAuctionById(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   try {
     const data = await auctionService.getAuctionById(req.params.id);
@@ -34,8 +62,9 @@ export async function getAuctionById(req: AuthenticatedRequest, res: Response, n
 
 export async function createAuction(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   try {
-    const data = await auctionService.createAuction(req.user!.id, req.body);
-    res.status(201).json({ success: true, data, message: 'Tạo đấu giá thành công' });
+    const user = requireUser(req);
+    const data = await auctionService.createAuction(user.id, req.body);
+    res.status(201).json({ success: true, data, message: 'Tao dau gia thanh cong' });
   } catch (error) {
     next(error);
   }
@@ -43,7 +72,8 @@ export async function createAuction(req: AuthenticatedRequest, res: Response, ne
 
 export async function updateAuction(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   try {
-    const data = await auctionService.updateAuction(req.params.id, req.user!.id, req.body);
+    const user = requireUser(req);
+    const data = await auctionService.updateAuction(req.params.id, user.id, req.body);
     res.json({ success: true, data });
   } catch (error) {
     next(error);
@@ -52,8 +82,9 @@ export async function updateAuction(req: AuthenticatedRequest, res: Response, ne
 
 export async function deleteAuction(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   try {
-    await auctionService.deleteAuction(req.params.id, req.user!.id, req.user!.role === 'ADMIN');
-    res.json({ success: true, message: 'Xoá đấu giá thành công' });
+    const user = requireUser(req);
+    await auctionService.deleteAuction(req.params.id, user.id, user.role === 'ADMIN');
+    res.json({ success: true, message: 'Xoa dau gia thanh cong' });
   } catch (error) {
     next(error);
   }
@@ -108,8 +139,9 @@ export async function getAdminMonitoring(
 
 export async function reviewAuction(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   try {
-    const data = await auctionService.reviewAuction(req.params.id, req.user!.id, req.body);
-    res.json({ success: true, data, message: 'Cập nhật duyệt sản phẩm thành công' });
+    const user = requireUser(req);
+    const data = await auctionService.reviewAuction(req.params.id, user.id, req.body);
+    res.json({ success: true, data, message: 'Cap nhat duyet san pham thanh cong' });
   } catch (error) {
     next(error);
   }
