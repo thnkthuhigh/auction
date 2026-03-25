@@ -27,6 +27,25 @@ function validateBidAmount(amount: number, currentPrice: number, minBidStep: num
   }
 }
 
+function mapBidForClient(bid: {
+  id: string;
+  amount: Prisma.Decimal;
+  createdAt: Date;
+  bidderId: string;
+  auctionId: string;
+  bidder: { username: string; avatar: string | null };
+}) {
+  return {
+    id: bid.id,
+    amount: Number(bid.amount),
+    createdAt: bid.createdAt.toISOString(),
+    bidderId: bid.bidderId,
+    bidderUsername: bid.bidder.username,
+    bidderAvatar: bid.bidder.avatar ?? undefined,
+    auctionId: bid.auctionId,
+  };
+}
+
 export async function placeBid(bidderId: string, auctionId: string, amount: number) {
   if (!Number.isFinite(amount) || !Number.isInteger(amount) || amount <= 0) {
     throw new AppError('Invalid bid amount', 400);
@@ -135,15 +154,7 @@ export async function placeBid(bidderId: string, auctionId: string, amount: numb
   const io = getIO();
   const totalBids = await prisma.bid.count({ where: { auctionId } });
 
-  const bidPayload = {
-    id: bid.id,
-    amount: Number(bid.amount),
-    createdAt: bid.createdAt.toISOString(),
-    bidderId: bid.bidderId,
-    bidderUsername: bid.bidder.username,
-    bidderAvatar: bid.bidder.avatar ?? undefined,
-    auctionId,
-  };
+  const bidPayload = mapBidForClient(bid);
 
   io.to(`auction:${auctionId}`).emit('bid:new', {
     bid: bidPayload,
@@ -183,18 +194,47 @@ export async function getBidsByAuction(auctionId: string, page = 1, limit = 20) 
   ]);
 
   return {
-    data: bids.map((b: (typeof bids)[number]) => ({
-      id: b.id,
-      amount: Number(b.amount),
-      createdAt: b.createdAt.toISOString(),
-      bidderId: b.bidderId,
-      bidderUsername: b.bidder.username,
-      bidderAvatar: b.bidder.avatar,
-      auctionId,
-    })),
+    data: bids.map((b: (typeof bids)[number]) => mapBidForClient(b)),
     total,
     page,
     limit,
     totalPages: Math.ceil(total / limit),
+  };
+}
+
+export async function getBidRealtimeSnapshot(auctionId: string, limit = 20) {
+  const [auction, bids, totalBids] = await Promise.all([
+    prisma.auction.findUnique({
+      where: { id: auctionId },
+      select: { id: true, currentPrice: true },
+    }),
+    prisma.bid.findMany({
+      where: { auctionId },
+      include: {
+        bidder: { select: { username: true, avatar: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    }),
+    prisma.bid.count({ where: { auctionId } }),
+  ]);
+
+  if (!auction) {
+    throw new AppError('Auction not found', 404);
+  }
+
+  return {
+    auctionId,
+    currentPrice: Number(auction.currentPrice),
+    totalBids,
+    bids: bids.map((bid) =>
+      mapBidForClient({
+        ...bid,
+        bidder: {
+          username: bid.bidder.username,
+          avatar: bid.bidder.avatar,
+        },
+      }),
+    ),
   };
 }
