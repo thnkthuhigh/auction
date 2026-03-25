@@ -9,6 +9,7 @@ import { auctionRoutes } from './modules/auctions/auction.routes';
 import { bidRoutes } from './modules/bids/bid.routes';
 import { uploadRoutes } from './modules/upload/upload.routes';
 import { errorMiddleware } from './middlewares/error.middleware';
+import { logger } from './utils/logger';
 
 const app = express();
 
@@ -26,7 +27,19 @@ app.use(
 );
 
 // Logging
-app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
+const morganFormat =
+  process.env.NODE_ENV === 'production'
+    ? 'combined'
+    : ':method :url :status :response-time ms - :res[content-length]';
+app.use(
+  morgan(morganFormat, {
+    stream: {
+      write: (message: string) => {
+        logger.http(message.trim());
+      },
+    },
+  }),
+);
 
 // Body parsing
 app.use(express.json({ limit: '10mb' }));
