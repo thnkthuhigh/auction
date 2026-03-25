@@ -32,13 +32,17 @@ export function registerAuctionHandlers(io: IO, socket: AppSocket) {
       socket.emit('error', { message });
     }
 
-    logger.debug('Auction room joined', {
-      auctionId,
-      room,
-      viewers: roomSize,
-      userId: socket.data.userId,
-      username: socket.data.username,
-    });
+    logger.debug(
+      'Auction room joined',
+      {
+        auctionId,
+        room,
+        viewers: roomSize,
+        userId: socket.data.userId,
+        username: socket.data.username,
+      },
+      'socket',
+    );
   });
 
   socket.on('auction:leave', ({ auctionId }) => {
@@ -49,12 +53,16 @@ export function registerAuctionHandlers(io: IO, socket: AppSocket) {
     const roomSize = io.sockets.adapter.rooms.get(room)?.size ?? 0;
     io.to(room).emit('auction:viewers', { auctionId, viewers: roomSize });
 
-    logger.debug('Auction room left', {
-      auctionId,
-      room,
-      viewers: roomSize,
-      userId: socket.data.userId,
-      username: socket.data.username,
-    });
+    logger.debug(
+      'Auction room left',
+      {
+        auctionId,
+        room,
+        viewers: roomSize,
+        userId: socket.data.userId,
+        username: socket.data.username,
+      },
+      'socket',
+    );
   });
 }
