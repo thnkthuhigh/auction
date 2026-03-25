@@ -18,7 +18,22 @@ export const useAuctionStore = create<AuctionState>((set) => ({
   liveBids: [],
   viewersCount: 0,
 
-  setActiveAuction: (auction) => set({ activeAuction: auction, liveBids: [] }),
+  setActiveAuction: (auction) =>
+    set((state) => {
+      const currentAuction = state.activeAuction;
+      if (!currentAuction || currentAuction.id !== auction.id) {
+        return { activeAuction: auction, liveBids: [] };
+      }
+
+      return {
+        activeAuction: {
+          ...auction,
+          currentPrice: Math.max(currentAuction.currentPrice, auction.currentPrice),
+          totalBids: Math.max(currentAuction.totalBids, auction.totalBids),
+        },
+        liveBids: state.liveBids,
+      };
+    }),
 
   updateAuctionPrice: (price, totalBids) =>
     set((state) => ({

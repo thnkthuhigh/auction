@@ -35,7 +35,7 @@ interface LegacyBidEventSocket {
  * - auto rejoin after reconnect
  */
 export function useAuctionSocket(auctionId: string | undefined, initialLeaderBidderId?: string) {
-  const { user } = useAuthStore();
+  const { user, isAuthenticated } = useAuthStore();
   const { addLiveBid, setLiveBids, updateAuctionPrice, setViewersCount } = useAuctionStore();
   const previousLeaderBidderIdRef = useRef<string | undefined>(initialLeaderBidderId);
 
@@ -44,7 +44,7 @@ export function useAuctionSocket(auctionId: string | undefined, initialLeaderBid
   }, [initialLeaderBidderId]);
 
   useEffect(() => {
-    if (!auctionId) return;
+    if (!auctionId || !isAuthenticated) return;
 
     const socket = connectSocket();
     const legacySocket = socket as unknown as LegacyBidEventSocket;
@@ -110,11 +110,16 @@ export function useAuctionSocket(auctionId: string | undefined, initialLeaderBid
       socket.emit('auction:join', { auctionId });
     };
 
+    const onConnectError = (error: Error) => {
+      toast.error(error.message || 'Khong ket noi duoc realtime');
+    };
+
     if (socket.connected) {
       onConnect();
     }
 
     socket.on('connect', onConnect);
+    socket.on('connect_error', onConnectError);
     socket.on('auction:snapshot', handleSnapshot);
     socket.on('auction:viewers', handleViewers);
     socket.on('bid:new', handleNewBidEvent);
@@ -153,6 +158,7 @@ export function useAuctionSocket(auctionId: string | undefined, initialLeaderBid
     return () => {
       socket.emit('auction:leave', { auctionId });
       socket.off('connect', onConnect);
+      socket.off('connect_error', onConnectError);
       socket.off('auction:snapshot', handleSnapshot);
       socket.off('auction:viewers', handleViewers);
       socket.off('bid:new', handleNewBidEvent);
@@ -163,7 +169,15 @@ export function useAuctionSocket(auctionId: string | undefined, initialLeaderBid
       socket.off('error');
       setViewersCount(0);
     };
-  }, [auctionId, user?.id, addLiveBid, setLiveBids, updateAuctionPrice, setViewersCount]);
+  }, [
+    auctionId,
+    isAuthenticated,
+    user?.id,
+    addLiveBid,
+    setLiveBids,
+    updateAuctionPrice,
+    setViewersCount,
+  ]);
 
   const placeBid = (amount: number) => {
     if (!auctionId) return;
