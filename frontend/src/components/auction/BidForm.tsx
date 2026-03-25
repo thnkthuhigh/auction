@@ -10,45 +10,90 @@ interface Props {
   isLoading?: boolean;
 }
 
+type BidFormValues = {
+  amount: number;
+};
+
 export default function BidForm({ auction, onPlaceBid, isLoading }: Props) {
   const minBid = auction.currentPrice + auction.minBidStep;
   const isExpiredByTime = new Date(auction.endTime).getTime() <= Date.now();
   const canBid = auction.status === 'ACTIVE' && !isExpiredByTime && !isLoading;
 
+  const getDisabledReason = () => {
+    if (isLoading) return 'Dang gui lenh bid...';
+    if (auction.status === 'PENDING') return 'Dau gia chua bat dau';
+    if (auction.status === 'REVIEW') return 'San pham dang cho duyet';
+    if (auction.status === 'CANCELLED') return 'Phien da bi huy';
+    if (isExpiredByTime) return 'Dau gia da het thoi gian';
+    return 'Dau gia da ket thuc';
+  };
+
+  const disabledReason = getDisabledReason();
+
   const schema = z.object({
     amount: z
       .number({ invalid_type_error: 'Vui long nhap so tien' })
       .int('So tien phai la so nguyen')
-      .min(minBid, `Gia thau toi thieu ${minBid.toLocaleString('vi-VN')} đ`),
+      .min(minBid, `Gia thau toi thieu ${minBid.toLocaleString('vi-VN')} VND`),
   });
 
   const {
     register,
     handleSubmit,
     formState: { errors },
+    setError,
+    clearErrors,
+    setValue,
+    watch,
     reset,
-  } = useForm<{ amount: number }>({
+  } = useForm<BidFormValues>({
     resolver: zodResolver(schema),
+    mode: 'onChange',
   });
 
   const quickBids = [minBid, minBid + auction.minBidStep, minBid + auction.minBidStep * 2];
+  const enteredAmount = watch('amount');
 
-  const onSubmit = ({ amount }: { amount: number }) => {
-    if (!canBid) return;
+  const getBidValidationError = (amount: number): string | null => {
+    if (!canBid) return disabledReason;
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return 'Vui long nhap gia hop le';
+    }
+
+    if (!Number.isInteger(amount)) {
+      return 'So tien phai la so nguyen';
+    }
+
+    if (amount < minBid) {
+      return `Gia thau toi thieu ${minBid.toLocaleString('vi-VN')} VND`;
+    }
+
+    const diffFromCurrent = amount - auction.currentPrice;
+    if (diffFromCurrent % auction.minBidStep !== 0) {
+      const roundedDiff = Math.ceil(diffFromCurrent / auction.minBidStep) * auction.minBidStep;
+      const nextValidBid = auction.currentPrice + roundedDiff;
+      return `Gia bid phai theo buoc ${auction.minBidStep.toLocaleString('vi-VN')} VND. Goi y: ${nextValidBid.toLocaleString('vi-VN')} VND`;
+    }
+
+    return null;
+  };
+
+  const submitBid = (amount: number) => {
+    const errorMessage = getBidValidationError(amount);
+    if (errorMessage) {
+      setError('amount', { type: 'manual', message: errorMessage });
+      return;
+    }
+
+    clearErrors('amount');
     onPlaceBid(amount);
     reset();
   };
 
-  const disabledReason =
-    auction.status === 'PENDING'
-      ? 'Dau gia chua bat dau'
-      : auction.status === 'REVIEW'
-        ? 'San pham dang cho duyet'
-        : auction.status === 'CANCELLED'
-          ? 'Phien da bi huy'
-          : isExpiredByTime
-            ? 'Dau gia da het thoi gian'
-            : 'Dau gia da ket thuc';
+  const onSubmit = ({ amount }: BidFormValues) => {
+    submitBid(amount);
+  };
 
   return (
     <section className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
@@ -64,19 +109,19 @@ export default function BidForm({ auction, onPlaceBid, isLoading }: Props) {
         </div>
         <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
           <Sparkles className="h-3.5 w-3.5" />
-          Toi thieu {minBid.toLocaleString('vi-VN')} đ
+          Toi thieu {minBid.toLocaleString('vi-VN')} VND
         </span>
       </div>
 
       <div className="mt-4 grid gap-3 rounded-[20px] bg-slate-50 p-4 sm:grid-cols-2">
         <SummaryCell
           label="Gia hien tai"
-          value={`${auction.currentPrice.toLocaleString('vi-VN')} đ`}
+          value={`${auction.currentPrice.toLocaleString('vi-VN')} VND`}
           tone="blue"
         />
         <SummaryCell
           label="Buoc gia"
-          value={`${auction.minBidStep.toLocaleString('vi-VN')} đ`}
+          value={`${auction.minBidStep.toLocaleString('vi-VN')} VND`}
           tone="slate"
         />
       </div>
@@ -86,11 +131,14 @@ export default function BidForm({ auction, onPlaceBid, isLoading }: Props) {
           <button
             key={amount}
             type="button"
-            onClick={() => canBid && onPlaceBid(amount)}
+            onClick={() => {
+              setValue('amount', amount, { shouldValidate: true });
+              submitBid(amount);
+            }}
             disabled={!canBid}
             className="rounded-2xl border border-blue-200 bg-blue-50 px-3 py-3 text-sm font-semibold text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
           >
-            {amount.toLocaleString('vi-VN')} đ
+            {amount.toLocaleString('vi-VN')} VND
           </button>
         ))}
       </div>
@@ -124,6 +172,11 @@ export default function BidForm({ auction, onPlaceBid, isLoading }: Props) {
       <p className="mt-3 text-xs leading-5 text-slate-500">
         Moi gia dat phai cao hon gia hien tai va theo dung buoc gia toi thieu cua phien.
       </p>
+      {Number.isFinite(enteredAmount) && enteredAmount > 0 && (
+        <p className="mt-1 text-xs leading-5 text-slate-500">
+          Gia hop le tiep theo toi thieu: {minBid.toLocaleString('vi-VN')} VND
+        </p>
+      )}
 
       {!canBid && (
         <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
