@@ -27,7 +27,7 @@ export function startAuctionScheduler() {
           });
         });
 
-        logger.info('Auctions started by scheduler', { count: toStart.length });
+        logger.info('Auctions started by scheduler', { count: toStart.length }, 'scheduler');
       }
 
       const toEnd = await prisma.auction.findMany({
@@ -59,12 +59,12 @@ export function startAuctionScheduler() {
       }
 
       if (toEnd.length > 0) {
-        logger.info('Auctions ended by scheduler', { count: toEnd.length });
+        logger.info('Auctions ended by scheduler', { count: toEnd.length }, 'scheduler');
       }
     } catch (error) {
-      logger.error('Auction scheduler tick failed', error);
+      logger.error('Auction scheduler tick failed', error, 'scheduler');
     }
   });
 
-  logger.info('Auction scheduler started');
+  logger.info('Auction scheduler started', undefined, 'scheduler');
 }

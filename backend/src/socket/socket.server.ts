@@ -32,11 +32,15 @@ export function initSocket(httpServer: HttpServer) {
   io.use(socketAuthMiddleware);
 
   io.on('connection', (socket) => {
-    logger.info('Socket connected', {
-      socketId: socket.id,
-      userId: socket.data.userId,
-      username: socket.data.username,
-    });
+    logger.info(
+      'Socket connected',
+      {
+        socketId: socket.id,
+        userId: socket.data.userId,
+        username: socket.data.username,
+      },
+      'socket',
+    );
 
     socket.join(`user:${socket.data.userId}`);
 
@@ -44,10 +48,14 @@ export function initSocket(httpServer: HttpServer) {
     registerBidHandlers(io, socket);
 
     socket.on('disconnect', (reason) => {
-      logger.info('Socket disconnected', {
-        socketId: socket.id,
-        reason,
-      });
+      logger.info(
+        'Socket disconnected',
+        {
+          socketId: socket.id,
+          reason,
+        },
+        'socket',
+      );
     });
   });
 

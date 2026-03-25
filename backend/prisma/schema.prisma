@@ -30,6 +30,13 @@ enum AuctionReviewStatus {
   CHANGES_REQUESTED
 }
 
+enum SystemLogLevel {
+  DEBUG
+  INFO
+  WARN
+  ERROR
+}
+
 model User {
   id        String   @id @default(uuid())
   email     String   @unique
@@ -111,4 +118,18 @@ model Bid {
   @@index([auctionId])
   @@index([bidderId])
   @@map("bids")
+}
+
+model SystemLog {
+  id        String         @id @default(uuid())
+  level     SystemLogLevel
+  message   String         @db.Text
+  source    String         @default("app")
+  meta      Json?
+  createdAt DateTime       @default(now())
+
+  @@index([level])
+  @@index([source])
+  @@index([createdAt])
+  @@map("system_logs")
 }

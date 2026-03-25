@@ -12,7 +12,7 @@ export const redis = new Redis(REDIS_URL, {
 });
 
 redis.on('error', (err) => {
-  logger.error('Redis error', { message: err.message });
+  logger.error('Redis error', { message: err.message }, 'redis');
 });
 
 // Keys helpers
