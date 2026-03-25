@@ -1,113 +1,105 @@
 import { PrismaClient } from '@prisma/client';
-import * as bcrypt from 'bcryptjs';
+import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
+const SALT_ROUNDS = 12;
 
-async function main() {
-  console.log('🌱 Seeding database...');
-
-  // Seed Categories
+async function seedCategories() {
   const categories = await Promise.all([
     prisma.category.upsert({
       where: { slug: 'electronics' },
       update: {},
-      create: { name: 'Điện tử', slug: 'electronics' },
+      create: { name: 'Electronics', slug: 'electronics' },
     }),
     prisma.category.upsert({
       where: { slug: 'fashion' },
       update: {},
-      create: { name: 'Thời trang', slug: 'fashion' },
+      create: { name: 'Fashion', slug: 'fashion' },
     }),
     prisma.category.upsert({
       where: { slug: 'vehicles' },
       update: {},
-      create: { name: 'Xe cộ', slug: 'vehicles' },
+      create: { name: 'Vehicles', slug: 'vehicles' },
     }),
     prisma.category.upsert({
       where: { slug: 'art' },
       update: {},
-      create: { name: 'Nghệ thuật', slug: 'art' },
+      create: { name: 'Art', slug: 'art' },
     }),
     prisma.category.upsert({
       where: { slug: 'real-estate' },
       update: {},
-      create: { name: 'Bất động sản', slug: 'real-estate' },
+      create: { name: 'Real Estate', slug: 'real-estate' },
     }),
   ]);
 
-  console.log(`✅ Created ${categories.length} categories`);
+  return categories;
+}
 
-  // Seed Admin User
-  const adminPassword = await bcrypt.hash('admin123456', 12);
+async function seedAuthUsers() {
+  const adminPassword = await bcrypt.hash('admin123456', SALT_ROUNDS);
+  const userPassword = await bcrypt.hash('user123456', SALT_ROUNDS);
+
   const admin = await prisma.user.upsert({
     where: { email: 'admin@auction.com' },
-    update: {},
+    update: {
+      username: 'admin',
+      password: adminPassword,
+      role: 'ADMIN',
+      isActive: true,
+      lockedAt: null,
+      lockReason: null,
+    },
     create: {
       email: 'admin@auction.com',
       username: 'admin',
       password: adminPassword,
       role: 'ADMIN',
       balance: 0,
+      isActive: true,
     },
   });
 
-  // Seed Demo Users
-  const userPassword = await bcrypt.hash('user123456', 12);
-  const users = await Promise.all([
-    prisma.user.upsert({
-      where: { email: 'seller@auction.com' },
-      update: {},
-      create: {
-        email: 'seller@auction.com',
-        username: 'nguyen_seller',
-        password: userPassword,
-        balance: 50000000,
-      },
-    }),
-    prisma.user.upsert({
-      where: { email: 'buyer@auction.com' },
-      update: {},
-      create: {
-        email: 'buyer@auction.com',
-        username: 'tran_buyer',
-        password: userPassword,
-        balance: 100000000,
-      },
-    }),
-  ]);
-
-  console.log(`✅ Created admin + ${users.length} demo users`);
-  console.log('📧 Admin: admin@auction.com / admin123456');
-  console.log('📧 Seller: seller@auction.com / user123456');
-  console.log('📧 Buyer: buyer@auction.com / user123456');
-
-  // Seed Demo Auction
-  const now = new Date();
-  const startTime = new Date(now.getTime() + 5 * 60 * 1000); // 5 phút sau
-  const endTime = new Date(now.getTime() + 2 * 60 * 60 * 1000); // 2 giờ sau
-
-  await prisma.auction.create({
-    data: {
-      title: 'iPhone 15 Pro Max 256GB – Chính hãng VN/A',
-      description:
-        'Máy mới 100%, chưa kích hoạt, đầy đủ phụ kiện. Màu Titanium Đen. Bảo hành Apple 12 tháng.',
-      startPrice: 25000000,
-      currentPrice: 25000000,
-      minBidStep: 500000,
-      startTime,
-      endTime,
-      sellerId: users[0].id,
-      categoryId: categories[0].id,
+  const user = await prisma.user.upsert({
+    where: { email: 'user@auction.com' },
+    update: {
+      username: 'demo_user',
+      password: userPassword,
+      role: 'USER',
+      isActive: true,
+      lockedAt: null,
+      lockReason: null,
+    },
+    create: {
+      email: 'user@auction.com',
+      username: 'demo_user',
+      password: userPassword,
+      role: 'USER',
+      balance: 100000000,
+      isActive: true,
     },
   });
 
-  console.log('✅ Created 1 demo auction');
-  console.log('🎉 Seeding completed!');
+  return { admin, user };
+}
+
+async function main() {
+  console.log('Seeding database...');
+
+  const categories = await seedCategories();
+  console.log(`Created ${categories.length} categories`);
+
+  const { admin, user } = await seedAuthUsers();
+  console.log('Created demo auth accounts:');
+  console.log(`- ADMIN: ${admin.email} / admin123456`);
+  console.log(`- USER: ${user.email} / user123456`);
+
+  console.log('Seed completed');
 }
 
 main()
-  .catch((e) => {
-    console.error('❌ Seed error:', e);
+  .catch((error) => {
+    console.error('Seed error:', error);
     process.exit(1);
   })
   .finally(async () => {

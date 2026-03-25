@@ -1,3 +1,4 @@
+import { type Role } from '@prisma/client';
 import { type Request, type Response, type NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../config/database';
@@ -7,7 +8,7 @@ export interface AuthenticatedRequest extends Request {
     id: string;
     email: string;
     username: string;
-    role: string;
+    role: Role;
   };
 }
 
@@ -24,9 +25,17 @@ export async function authMiddleware(
   }
 
   const token = authHeader.split(' ')[1];
+  const jwtSecret = process.env.JWT_SECRET;
+
+  if (!jwtSecret) {
+    res
+      .status(500)
+      .json({ success: false, message: 'Server misconfiguration: JWT secret missing' });
+    return;
+  }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as {
+    const decoded = jwt.verify(token, jwtSecret) as {
       userId: string;
     };
 
@@ -45,7 +54,13 @@ export async function authMiddleware(
       return;
     }
 
-    req.user = user;
+    req.user = {
+      id: user.id,
+      email: user.email,
+      username: user.username,
+      role: user.role,
+    };
+
     next();
   } catch {
     res.status(401).json({
@@ -55,10 +70,16 @@ export async function authMiddleware(
   }
 }
 
-export function requireAdmin(req: AuthenticatedRequest, res: Response, next: NextFunction): void {
-  if (req.user?.role !== 'ADMIN') {
-    res.status(403).json({ success: false, message: 'Forbidden: Admin only' });
-    return;
-  }
-  next();
+export function requireRoles(...roles: Role[]) {
+  return (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
+    if (!req.user || !roles.includes(req.user.role)) {
+      res.status(403).json({ success: false, message: 'Forbidden: Insufficient permissions' });
+      return;
+    }
+
+    next();
+  };
 }
+
+export const requireAdmin = requireRoles('ADMIN');
+export const requireUser = requireRoles('USER');
