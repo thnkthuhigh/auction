@@ -166,6 +166,8 @@ export async function getAuctions(filters: {
       OR: [
         { title: { contains: normalizedSearch, mode: 'insensitive' } },
         { description: { contains: normalizedSearch, mode: 'insensitive' } },
+        { seller: { username: { contains: normalizedSearch, mode: 'insensitive' } } },
+        { category: { name: { contains: normalizedSearch, mode: 'insensitive' } } },
       ],
     }),
   };
