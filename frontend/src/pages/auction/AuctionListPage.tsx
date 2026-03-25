@@ -1,9 +1,11 @@
-import { useDeferredValue, useState } from 'react';
+import { startTransition, useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Filter, RotateCcw, Search, SlidersHorizontal, Sparkles } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import { auctionService } from '@/services/auction.service';
 import AuctionCard from '@/components/auction/AuctionCard';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import type { AuctionStatus } from '@auction/shared';
 
 const STATUS_FILTERS: { label: string; value: AuctionStatus | '' }[] = [
@@ -21,20 +23,70 @@ const SORT_OPTIONS = [
   { label: 'Giá thấp nhất', sortBy: 'currentPrice' as const, sortOrder: 'asc' as const },
 ];
 
-/**
- * TV5 phụ trách trang này
- */
+const DEFAULT_SORT_VALUE = 'createdAt-desc';
+const VALID_SORT_VALUES = new Set(
+  SORT_OPTIONS.map((option) => `${option.sortBy}-${option.sortOrder}`),
+);
+
+function parsePositivePage(value: string | null) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
+}
+
+function parseStatus(value: string | null): AuctionStatus | '' {
+  return STATUS_FILTERS.some((filter) => filter.value === value) ? (value as AuctionStatus | '') : '';
+}
+
+function parseSortValue(value: string | null) {
+  return value && VALID_SORT_VALUES.has(value) ? value : DEFAULT_SORT_VALUE;
+}
+
 export default function AuctionListPage() {
-  const [search, setSearch] = useState('');
-  const [status, setStatus] = useState<AuctionStatus | ''>('');
-  const [categoryId, setCategoryId] = useState('');
-  const [sortValue, setSortValue] = useState('createdAt-desc');
-  const [page, setPage] = useState(1);
-  const deferredSearch = useDeferredValue(search);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [search, setSearch] = useState(() => searchParams.get('search') ?? '');
+  const [status, setStatus] = useState<AuctionStatus | ''>(() => parseStatus(searchParams.get('status')));
+  const [categoryId, setCategoryId] = useState(() => searchParams.get('categoryId') ?? '');
+  const [sortValue, setSortValue] = useState(() => parseSortValue(searchParams.get('sort')));
+  const [page, setPage] = useState(() => parsePositivePage(searchParams.get('page')));
+  const debouncedSearch = useDebouncedValue(search, 500);
+  const normalizedSearch = debouncedSearch.trim();
   const [sortBy, sortOrder] = sortValue.split('-') as [
     'createdAt' | 'endTime' | 'currentPrice',
     'asc' | 'desc',
   ];
+  const currentQueryString = searchParams.toString();
+
+  useEffect(() => {
+    const nextParams = new URLSearchParams();
+    const trimmedSearch = search.trim();
+
+    if (trimmedSearch) {
+      nextParams.set('search', trimmedSearch);
+    }
+
+    if (status) {
+      nextParams.set('status', status);
+    }
+
+    if (categoryId) {
+      nextParams.set('categoryId', categoryId);
+    }
+
+    if (sortValue !== DEFAULT_SORT_VALUE) {
+      nextParams.set('sort', sortValue);
+    }
+
+    if (page > 1) {
+      nextParams.set('page', String(page));
+    }
+
+    const nextQueryString = nextParams.toString();
+    if (nextQueryString !== currentQueryString) {
+      startTransition(() => {
+        setSearchParams(nextParams, { replace: true });
+      });
+    }
+  }, [categoryId, currentQueryString, page, search, setSearchParams, sortValue, status]);
 
   const {
     data,
@@ -44,10 +96,10 @@ export default function AuctionListPage() {
     isFetching,
     refetch,
   } = useQuery({
-    queryKey: ['auctions', { search: deferredSearch, status, categoryId, sortBy, sortOrder, page }],
+    queryKey: ['auctions', { search: normalizedSearch, status, categoryId, sortBy, sortOrder, page }],
     queryFn: () =>
       auctionService.getAuctions({
-        search: deferredSearch || undefined,
+        search: normalizedSearch || undefined,
         status: status || undefined,
         categoryId: categoryId || undefined,
         sortBy,
@@ -69,7 +121,7 @@ export default function AuctionListPage() {
   const currentSortLabel =
     SORT_OPTIONS.find((option) => `${option.sortBy}-${option.sortOrder}` === sortValue)?.label ??
     'Mới nhất';
-  const hasActiveFilters = Boolean(search || status || categoryId || sortValue !== 'createdAt-desc');
+  const hasActiveFilters = Boolean(search || status || categoryId || sortValue !== DEFAULT_SORT_VALUE);
   const auctions = data?.data ?? [];
   const totalPages = data?.totalPages ?? 0;
   const pageStart = data?.total ? (page - 1) * (data.limit ?? 0) + 1 : 0;
@@ -79,7 +131,7 @@ export default function AuctionListPage() {
     setSearch('');
     setStatus('');
     setCategoryId('');
-    setSortValue('createdAt-desc');
+    setSortValue(DEFAULT_SORT_VALUE);
     setPage(1);
   };
 
@@ -109,7 +161,7 @@ export default function AuctionListPage() {
             <SummaryCard label="Danh mục" value={categories.length} tone="cyan" />
             <SummaryCard
               label="Bộ lọc hiện tại"
-              value={currentCategory?.name ?? activeStatusLabel}
+              value={normalizedSearch || currentCategory?.name || activeStatusLabel}
               tone="slate"
               isText
             />
@@ -124,14 +176,26 @@ export default function AuctionListPage() {
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
-                placeholder="Tìm theo tên hoặc mô tả sản phẩm..."
+                placeholder="Tìm theo tên, mô tả, người bán hoặc danh mục..."
                 value={search}
                 onChange={(event) => {
                   setSearch(event.target.value);
                   setPage(1);
                 }}
-                className="w-full rounded-xl border border-slate-300 bg-slate-50/60 py-3 pl-10 pr-4 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                className="w-full rounded-xl border border-slate-300 bg-slate-50/60 py-3 pl-10 pr-16 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
               />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearch('');
+                    setPage(1);
+                  }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full px-2 py-1 text-xs font-semibold text-slate-500 transition hover:bg-slate-200 hover:text-slate-700"
+                >
+                  Xoá
+                </button>
+              )}
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2 lg:w-[28rem] lg:grid-cols-2">
@@ -223,7 +287,9 @@ export default function AuctionListPage() {
           </p>
           <p className="mt-1 text-sm text-slate-500">
             {data?.total
-              ? `Hiển thị ${pageStart}-${pageEnd} trên tổng ${data.total} phiên đấu giá`
+              ? `Hiển thị ${pageStart}-${pageEnd} trên tổng ${data.total} phiên đấu giá${
+                  normalizedSearch ? ` cho từ khoá "${normalizedSearch}"` : ''
+                }`
               : 'Điều chỉnh bộ lọc để khám phá thêm sản phẩm phù hợp.'}
           </p>
         </div>
@@ -257,8 +323,7 @@ export default function AuctionListPage() {
           </div>
           <h2 className="mt-4 text-xl font-semibold text-slate-900">Không tìm thấy phiên phù hợp</h2>
           <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">
-            Thử đổi từ khoá tìm kiếm, chuyển trạng thái hoặc chọn lại danh mục để mở rộng kết
-            quả.
+            Thử đổi từ khoá tìm kiếm, chuyển trạng thái hoặc chọn lại danh mục để mở rộng kết quả.
           </p>
           {hasActiveFilters && (
             <button
@@ -281,8 +346,7 @@ export default function AuctionListPage() {
           {totalPages > 1 && (
             <div className="flex flex-col items-center justify-between gap-4 rounded-[24px] border border-slate-200 bg-white px-4 py-4 sm:flex-row sm:px-5">
               <p className="text-sm text-slate-500">
-                Trang <span className="font-semibold text-slate-900">{page}</span> /{' '}
-                {totalPages}
+                Trang <span className="font-semibold text-slate-900">{page}</span> / {totalPages}
               </p>
               <div className="flex items-center gap-2">
                 <button
