@@ -8,6 +8,7 @@ interface AuctionState {
   setActiveAuction: (auction: Auction) => void;
   updateAuctionPrice: (price: number, totalBids: number) => void;
   addLiveBid: (bid: Bid) => void;
+  setLiveBids: (bids: Bid[]) => void;
   setViewersCount: (count: number) => void;
   resetAuction: () => void;
 }
@@ -29,6 +30,11 @@ export const useAuctionStore = create<AuctionState>((set) => ({
   addLiveBid: (bid) =>
     set((state) => ({
       liveBids: [bid, ...state.liveBids].slice(0, 50), // keep last 50
+    })),
+
+  setLiveBids: (bids) =>
+    set(() => ({
+      liveBids: bids.slice(0, 50),
     })),
 
   setViewersCount: (count) => set({ viewersCount: count }),
