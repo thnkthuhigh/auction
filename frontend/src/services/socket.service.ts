@@ -11,14 +11,14 @@ function getLatestAccessToken() {
 }
 
 function setSocketAuthToken(target: AppSocket, token: string | undefined) {
-  target.auth = { token };
+  target.auth = token ? { token } : {};
 }
 
 export function getSocket(): AppSocket {
   if (!socket) {
     const token = getLatestAccessToken();
     socket = io(import.meta.env.VITE_SOCKET_URL || 'http://localhost:3001', {
-      auth: { token },
+      auth: token ? { token } : {},
       transports: ['websocket', 'polling'],
       autoConnect: false,
     });
@@ -32,12 +32,7 @@ export function connectSocket(): AppSocket {
   const latestToken = getLatestAccessToken();
   setSocketAuthToken(s, latestToken);
 
-  if (!latestToken) {
-    if (s.connected) s.disconnect();
-    return s;
-  }
-
-  if (s.connected && previousToken && previousToken !== latestToken) {
+  if (s.connected && previousToken !== latestToken) {
     s.disconnect();
   }
 

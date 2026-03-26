@@ -24,7 +24,9 @@ export async function socketAuthMiddleware(
     socket.handshake.auth?.token || socket.handshake.headers?.authorization?.split(' ')[1];
 
   if (!token) {
-    return next(new Error('Authentication required'));
+    socket.data.isAuthenticated = false;
+    socket.data.username = 'guest';
+    return next();
   }
 
   try {
@@ -38,10 +40,13 @@ export async function socketAuthMiddleware(
 
     if (!user) return next(new Error('User not found'));
 
+    socket.data.isAuthenticated = true;
     socket.data.userId = user.id;
     socket.data.username = user.username;
     next();
   } catch {
-    next(new Error('Invalid token'));
+    socket.data.isAuthenticated = false;
+    socket.data.username = 'guest';
+    next();
   }
 }

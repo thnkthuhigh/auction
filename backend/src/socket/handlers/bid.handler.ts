@@ -1,4 +1,4 @@
-import { Server, Socket } from 'socket.io';
+import { type Server, type Socket } from 'socket.io';
 import { placeBid } from '../../modules/bids/bid.service';
 import type {
   ClientToServerEvents,
@@ -12,6 +12,11 @@ type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerE
 
 export function registerBidHandlers(_io: IO, socket: AppSocket) {
   socket.on('bid:place', async ({ auctionId, amount }) => {
+    if (!socket.data.isAuthenticated || !socket.data.userId) {
+      socket.emit('error', { message: 'Vui long dang nhap de dat gia' });
+      return;
+    }
+
     if (
       typeof auctionId !== 'string' ||
       !auctionId.trim() ||

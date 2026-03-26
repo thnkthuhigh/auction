@@ -1,16 +1,7 @@
 import { useEffect, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  ArrowLeft,
-  CalendarClock,
-  Clock3,
-  Gavel,
-  Send,
-  ShieldCheck,
-  Tag,
-  UserRound,
-} from 'lucide-react';
+import { ArrowLeft, CalendarClock, Clock3, Send, ShieldCheck, Tag, UserRound } from 'lucide-react';
 import { format } from 'date-fns';
 import { vi } from 'date-fns/locale';
 import toast from 'react-hot-toast';
@@ -80,10 +71,17 @@ const STATUS_META: Record<
 
 export default function AuctionDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const auctionId = id ?? '';
   const { user, isAuthenticated } = useAuthStore();
-  const { liveBids, viewersCount, setActiveAuction, activeAuction, resetAuction } =
-    useAuctionStore();
-  const { placeBid } = useAuctionSocket(id);
+  const {
+    liveBids,
+    setActiveAuction,
+    activeAuction,
+    resetAuction,
+    viewersCount,
+    serverTimeOffsetMs,
+  } = useAuctionStore();
+  useAuctionSocket(id);
   const queryClient = useQueryClient();
 
   const {
@@ -93,25 +91,39 @@ export default function AuctionDetailPage() {
     error,
     refetch,
   } = useQuery({
-    queryKey: ['auction', id],
-    queryFn: () => auctionService.getAuctionById(id!),
-    enabled: Boolean(id),
+    queryKey: ['auction', auctionId],
+    queryFn: () => auctionService.getAuctionById(auctionId),
+    enabled: Boolean(auctionId),
   });
 
   const { data: bidsData, isLoading: bidsLoading } = useQuery({
-    queryKey: ['bids', id],
-    queryFn: () => auctionService.getBids(id!),
-    enabled: Boolean(id),
+    queryKey: ['bids', auctionId],
+    queryFn: () => auctionService.getBids(auctionId),
+    enabled: Boolean(auctionId),
   });
 
   const submitMutation = useMutation({
-    mutationFn: () => auctionService.submitForReview(id!),
+    mutationFn: async () => {
+      if (!auctionId) throw new Error('Auction id is required');
+      return auctionService.submitForReview(auctionId);
+    },
     onSuccess: () => {
       toast.success('Gui duyet thanh cong! Admin se kiem tra san pham cua ban.');
-      queryClient.invalidateQueries({ queryKey: ['auction', id] });
+      queryClient.invalidateQueries({ queryKey: ['auction', auctionId] });
     },
     onError: (mutationError: { response?: { data?: { message?: string } } }) => {
       toast.error(mutationError.response?.data?.message || 'Gui duyet that bai');
+    },
+  });
+
+  const placeBidMutation = useMutation({
+    mutationFn: async (amount: number) => {
+      if (!auctionId) throw new Error('Auction id is required');
+      return auctionService.placeBid(auctionId, amount);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['auction', auctionId] });
+      queryClient.invalidateQueries({ queryKey: ['bids', auctionId] });
     },
   });
 
@@ -181,6 +193,7 @@ export default function AuctionDetailPage() {
           currentBid.amount > maxBid.amount ? currentBid : maxBid,
         )
       : null;
+  const leaderName = winnerBid?.bidderUsername;
 
   const sellerName =
     displayAuction.sellerUsername ||
@@ -206,6 +219,10 @@ export default function AuctionDetailPage() {
     { locale: vi },
   );
   const statusMeta = STATUS_META[displayAuction.status];
+
+  const handlePlaceBid = async (amount: number) => {
+    await placeBidMutation.mutateAsync(amount);
+  };
 
   return (
     <div className="space-y-6">
@@ -359,7 +376,27 @@ export default function AuctionDetailPage() {
             startTime={sourceAuction.startTime}
             endTime={sourceAuction.endTime}
             status={displayAuction.status}
+            serverTimeOffsetMs={serverTimeOffsetMs}
           />
+
+          <section className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
+              Live ranking
+            </p>
+            <h3 className="mt-1 text-lg font-semibold text-slate-900">Nguoi dang Top 1</h3>
+            {leaderName ? (
+              <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+                <p className="text-sm font-medium text-emerald-800">{leaderName}</p>
+                <p className="mt-1 text-sm text-emerald-700">
+                  {winnerBid?.amount.toLocaleString('vi-VN')} đ
+                </p>
+              </div>
+            ) : (
+              <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                Chua co luot dat gia nao trong phien nay.
+              </div>
+            )}
+          </section>
 
           {isCompleted && winnerName ? (
             <WinnerCard
@@ -380,7 +417,11 @@ export default function AuctionDetailPage() {
               </p>
             </section>
           ) : isBuyerView ? (
-            <BidForm auction={displayAuction} onPlaceBid={placeBid} />
+            <BidForm
+              auction={displayAuction}
+              onPlaceBid={handlePlaceBid}
+              isLoading={placeBidMutation.isPending}
+            />
           ) : !isAuthenticated ? (
             <section className="rounded-[24px] border border-blue-200 bg-blue-50 p-5 shadow-sm">
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">

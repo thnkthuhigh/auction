@@ -102,9 +102,11 @@ export async function placeBid(bidderId: string, auctionId: string, amount: numb
         throw new AppError('Auction has ended', 400);
       }
 
-      const latestCurrentPrice = Number(latestAuction.currentPrice);
-      const latestMinBidStep = Number(latestAuction.minBidStep);
-      validateBidAmount(amount, latestCurrentPrice, latestMinBidStep);
+      validateBidAmount(
+        amount,
+        Number(latestAuction.currentPrice),
+        Number(latestAuction.minBidStep),
+      );
 
       const previousLeader = await tx.bid.findFirst({
         where: { auctionId },
@@ -206,7 +208,12 @@ export async function getBidRealtimeSnapshot(auctionId: string, limit = 20) {
   const [auction, bids, totalBids] = await Promise.all([
     prisma.auction.findUnique({
       where: { id: auctionId },
-      select: { id: true, currentPrice: true },
+      select: {
+        id: true,
+        currentPrice: true,
+        status: true,
+        endTime: true,
+      },
     }),
     prisma.bid.findMany({
       where: { auctionId },
@@ -227,6 +234,9 @@ export async function getBidRealtimeSnapshot(auctionId: string, limit = 20) {
     auctionId,
     currentPrice: Number(auction.currentPrice),
     totalBids,
+    status: auction.status,
+    endsAt: auction.endTime.toISOString(),
+    serverTime: new Date().toISOString(),
     bids: bids.map((bid) =>
       mapBidForClient({
         ...bid,

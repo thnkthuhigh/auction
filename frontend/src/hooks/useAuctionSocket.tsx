@@ -16,6 +16,9 @@ interface AuctionSnapshotPayload {
   currentPrice: number;
   totalBids: number;
   bids: Bid[];
+  status: 'PENDING' | 'REVIEW' | 'ACTIVE' | 'ENDED' | 'CANCELLED';
+  endsAt: string;
+  serverTime: string;
 }
 
 interface AuctionViewersPayload {
@@ -35,8 +38,15 @@ interface LegacyBidEventSocket {
  * - auto rejoin after reconnect
  */
 export function useAuctionSocket(auctionId: string | undefined, initialLeaderBidderId?: string) {
-  const { user, isAuthenticated } = useAuthStore();
-  const { addLiveBid, setLiveBids, updateAuctionPrice, setViewersCount } = useAuctionStore();
+  const { user } = useAuthStore();
+  const {
+    addLiveBid,
+    setLiveBids,
+    updateAuctionPrice,
+    setViewersCount,
+    setServerTimeOffsetMs,
+    updateAuctionRealtimeStatus,
+  } = useAuctionStore();
   const previousLeaderBidderIdRef = useRef<string | undefined>(initialLeaderBidderId);
 
   useEffect(() => {
@@ -44,7 +54,7 @@ export function useAuctionSocket(auctionId: string | undefined, initialLeaderBid
   }, [initialLeaderBidderId]);
 
   useEffect(() => {
-    if (!auctionId || !isAuthenticated) return;
+    if (!auctionId) return;
 
     const socket = connectSocket();
     const legacySocket = socket as unknown as LegacyBidEventSocket;
@@ -93,12 +103,21 @@ export function useAuctionSocket(auctionId: string | undefined, initialLeaderBid
       currentPrice,
       totalBids,
       bids,
+      status,
+      endsAt,
+      serverTime,
     }: AuctionSnapshotPayload) => {
       if (payloadAuctionId !== auctionId) return;
 
       setLiveBids(bids);
       updateAuctionPrice(currentPrice, totalBids);
+      updateAuctionRealtimeStatus({ status, endTime: endsAt });
       previousLeaderBidderIdRef.current = bids[0]?.bidderId;
+
+      const offsetMs = new Date(serverTime).getTime() - Date.now();
+      if (Number.isFinite(offsetMs)) {
+        setServerTimeOffsetMs(offsetMs);
+      }
     };
 
     const handleViewers = ({ auctionId: payloadAuctionId, viewers }: AuctionViewersPayload) => {
@@ -126,12 +145,20 @@ export function useAuctionSocket(auctionId: string | undefined, initialLeaderBid
     legacySocket.on('new_bid', handleNewBidEvent);
 
     socket.on('auction:started', ({ endsAt }) => {
+      updateAuctionRealtimeStatus({ status: 'ACTIVE', endTime: endsAt });
       toast.success(
         `Dau gia da bat dau. Ket thuc luc ${new Date(endsAt).toLocaleTimeString('vi-VN')}`,
       );
     });
 
     socket.on('auction:ended', ({ winner, finalPrice }) => {
+      updateAuctionRealtimeStatus({
+        status: 'ENDED',
+        winnerId: winner?.id ?? null,
+        winnerUsername: winner?.username,
+        currentPrice: finalPrice,
+      });
+
       if (winner) {
         if (winner.id === user?.id) {
           toast.success(
@@ -171,12 +198,13 @@ export function useAuctionSocket(auctionId: string | undefined, initialLeaderBid
     };
   }, [
     auctionId,
-    isAuthenticated,
     user?.id,
     addLiveBid,
     setLiveBids,
     updateAuctionPrice,
     setViewersCount,
+    setServerTimeOffsetMs,
+    updateAuctionRealtimeStatus,
   ]);
 
   const placeBid = (amount: number) => {

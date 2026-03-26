@@ -38,14 +38,30 @@ export function initSocket(httpServer: HttpServer) {
         socketId: socket.id,
         userId: socket.data.userId,
         username: socket.data.username,
+        isAuthenticated: socket.data.isAuthenticated,
       },
       'socket',
     );
 
-    socket.join(`user:${socket.data.userId}`);
+    if (socket.data.isAuthenticated && socket.data.userId) {
+      socket.join(`user:${socket.data.userId}`);
+    }
 
     registerAuctionHandlers(io, socket);
     registerBidHandlers(io, socket);
+
+    socket.on('disconnecting', () => {
+      for (const room of socket.rooms) {
+        if (!room.startsWith('auction:')) {
+          continue;
+        }
+
+        const auctionId = room.slice('auction:'.length);
+        const roomSize = io.sockets.adapter.rooms.get(room)?.size ?? 1;
+        const viewers = Math.max(0, roomSize - 1);
+        io.to(room).emit('auction:viewers', { auctionId, viewers });
+      }
+    });
 
     socket.on('disconnect', (reason) => {
       logger.info(
