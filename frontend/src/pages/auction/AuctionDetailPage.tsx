@@ -1,16 +1,7 @@
 import { useEffect, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  ArrowLeft,
-  CalendarClock,
-  Clock3,
-  Gavel,
-  Send,
-  ShieldCheck,
-  Tag,
-  UserRound,
-} from 'lucide-react';
+import { ArrowLeft, CalendarClock, Clock3, Send, ShieldCheck, Tag, UserRound } from 'lucide-react';
 import { format } from 'date-fns';
 import { vi } from 'date-fns/locale';
 import toast from 'react-hot-toast';
@@ -80,6 +71,7 @@ const STATUS_META: Record<
 
 export default function AuctionDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const auctionId = id ?? '';
   const { user, isAuthenticated } = useAuthStore();
   const {
     liveBids,
@@ -99,22 +91,25 @@ export default function AuctionDetailPage() {
     error,
     refetch,
   } = useQuery({
-    queryKey: ['auction', id],
-    queryFn: () => auctionService.getAuctionById(id!),
-    enabled: Boolean(id),
+    queryKey: ['auction', auctionId],
+    queryFn: () => auctionService.getAuctionById(auctionId),
+    enabled: Boolean(auctionId),
   });
 
   const { data: bidsData, isLoading: bidsLoading } = useQuery({
-    queryKey: ['bids', id],
-    queryFn: () => auctionService.getBids(id!),
-    enabled: Boolean(id),
+    queryKey: ['bids', auctionId],
+    queryFn: () => auctionService.getBids(auctionId),
+    enabled: Boolean(auctionId),
   });
 
   const submitMutation = useMutation({
-    mutationFn: () => auctionService.submitForReview(id!),
+    mutationFn: async () => {
+      if (!auctionId) throw new Error('Auction id is required');
+      return auctionService.submitForReview(auctionId);
+    },
     onSuccess: () => {
       toast.success('Gui duyet thanh cong! Admin se kiem tra san pham cua ban.');
-      queryClient.invalidateQueries({ queryKey: ['auction', id] });
+      queryClient.invalidateQueries({ queryKey: ['auction', auctionId] });
     },
     onError: (mutationError: { response?: { data?: { message?: string } } }) => {
       toast.error(mutationError.response?.data?.message || 'Gui duyet that bai');
@@ -122,10 +117,13 @@ export default function AuctionDetailPage() {
   });
 
   const placeBidMutation = useMutation({
-    mutationFn: (amount: number) => auctionService.placeBid(id!, amount),
+    mutationFn: async (amount: number) => {
+      if (!auctionId) throw new Error('Auction id is required');
+      return auctionService.placeBid(auctionId, amount);
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['auction', id] });
-      queryClient.invalidateQueries({ queryKey: ['bids', id] });
+      queryClient.invalidateQueries({ queryKey: ['auction', auctionId] });
+      queryClient.invalidateQueries({ queryKey: ['bids', auctionId] });
     },
   });
 

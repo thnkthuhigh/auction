@@ -19,7 +19,7 @@ export function registerAuctionHandlers(io: IO, socket: AppSocket) {
     }
 
     const room = `auction:${auctionId}`;
-    socket.join(room);
+    void socket.join(room);
 
     const roomSize = io.sockets.adapter.rooms.get(room)?.size ?? 0;
     io.to(room).emit('auction:viewers', { auctionId, viewers: roomSize });
@@ -49,7 +49,7 @@ export function registerAuctionHandlers(io: IO, socket: AppSocket) {
     if (!auctionId?.trim()) return;
 
     const room = `auction:${auctionId}`;
-    socket.leave(room);
+    void socket.leave(room);
     const roomSize = io.sockets.adapter.rooms.get(room)?.size ?? 0;
     io.to(room).emit('auction:viewers', { auctionId, viewers: roomSize });
 
