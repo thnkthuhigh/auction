@@ -274,17 +274,17 @@ export default function AuctionDetailPage() {
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <HeroMetric
               label="Gia hien tai"
-              value={`${displayAuction.currentPrice.toLocaleString('vi-VN')} đ`}
+              value={`${displayAuction.currentPrice.toLocaleString('vi-VN')} VND`}
             />
             <HeroMetric label="Tong luot bid" value={String(displayAuction.totalBids)} />
             <HeroMetric label="Nguoi dang xem" value={String(viewersCount)} />
             <HeroMetric
               label="Gia khoi diem"
-              value={`${sourceAuction.startPrice.toLocaleString('vi-VN')} đ`}
+              value={`${sourceAuction.startPrice.toLocaleString('vi-VN')} VND`}
             />
             <HeroMetric
               label="Buoc gia"
-              value={`${displayAuction.minBidStep.toLocaleString('vi-VN')} đ`}
+              value={`${displayAuction.minBidStep.toLocaleString('vi-VN')} VND`}
             />
           </div>
         </div>

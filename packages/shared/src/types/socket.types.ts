@@ -1,14 +1,14 @@
 import type { Bid } from './bid.types';
 import type { Auction } from './auction.types';
 
-// Client → Server
+// Client -> Server
 export interface ClientToServerEvents {
   'auction:join': (payload: { auctionId: string }) => void;
   'auction:leave': (payload: { auctionId: string }) => void;
   'bid:place': (payload: { auctionId: string; amount: number }) => void;
 }
 
-// Server → Client
+// Server -> Client
 export interface ServerToClientEvents {
   'bid:new': (payload: { bid: Bid; currentPrice: number; totalBids: number }) => void;
   'auction:snapshot': (payload: {

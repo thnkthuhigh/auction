@@ -1,17 +1,18 @@
-import { type Server as HttpServer } from 'http';
-import { Server as SocketIOServer } from 'socket.io';
-import { createAdapter } from '@socket.io/redis-adapter';
-import { redis } from '../config/redis';
-import Redis from 'ioredis';
-import { socketAuthMiddleware } from './socket.auth';
-import { registerAuctionHandlers } from './handlers/auction.handler';
-import { registerBidHandlers } from './handlers/bid.handler';
 import type {
   ClientToServerEvents,
-  ServerToClientEvents,
   InterServerEvents,
+  ServerToClientEvents,
   SocketData,
 } from '@auction/shared';
+import { createAdapter } from '@socket.io/redis-adapter';
+import { type Server as HttpServer } from 'http';
+import Redis from 'ioredis';
+import { Server as SocketIOServer } from 'socket.io';
+import { redis } from '../config/redis';
+import { logger } from '../utils/logger';
+import { registerAuctionHandlers } from './handlers/auction.handler';
+import { registerBidHandlers } from './handlers/bid.handler';
+import { socketAuthMiddleware } from './socket.auth';
 
 let io: SocketIOServer<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
 
@@ -24,21 +25,24 @@ export function initSocket(httpServer: HttpServer) {
     transports: ['websocket', 'polling'],
   });
 
-  // Redis adapter for horizontal scaling
   const pubClient = redis;
   const subClient = new Redis(process.env.REDIS_URL || 'redis://localhost:6379');
   io.adapter(createAdapter(pubClient, subClient));
 
-  // Auth middleware
   io.use(socketAuthMiddleware);
 
   io.on('connection', (socket) => {
-    const socketIdentity = socket.data.isAuthenticated
-      ? (socket.data.username ?? socket.data.userId ?? 'authenticated-user')
-      : 'guest';
-    console.log(`🔌 Socket connected: ${socket.id} (user: ${socketIdentity})`);
+    logger.info(
+      'Socket connected',
+      {
+        socketId: socket.id,
+        userId: socket.data.userId,
+        username: socket.data.username,
+        isAuthenticated: socket.data.isAuthenticated,
+      },
+      'socket',
+    );
 
-    // Join personal room for user-specific events
     if (socket.data.isAuthenticated && socket.data.userId) {
       socket.join(`user:${socket.data.userId}`);
     }
@@ -60,7 +64,14 @@ export function initSocket(httpServer: HttpServer) {
     });
 
     socket.on('disconnect', (reason) => {
-      console.log(`🔌 Socket disconnected: ${socket.id} – ${reason}`);
+      logger.info(
+        'Socket disconnected',
+        {
+          socketId: socket.id,
+          reason,
+        },
+        'socket',
+      );
     });
   });
 

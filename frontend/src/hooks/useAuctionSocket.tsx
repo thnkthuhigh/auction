@@ -11,11 +11,6 @@ interface BidRealtimePayload {
   totalBids: number;
 }
 
-interface LegacyBidEventSocket {
-  on: (event: 'new_bid', listener: (payload: BidRealtimePayload) => void) => void;
-  off: (event: 'new_bid', listener: (payload: BidRealtimePayload) => void) => void;
-}
-
 interface AuctionSnapshotPayload {
   auctionId: string;
   currentPrice: number;
@@ -31,9 +26,16 @@ interface AuctionViewersPayload {
   viewers: number;
 }
 
+interface LegacyBidEventSocket {
+  on: (event: 'new_bid', listener: (payload: BidRealtimePayload) => void) => void;
+  off: (event: 'new_bid', listener: (payload: BidRealtimePayload) => void) => void;
+}
+
 /**
- * Hook quản lý Socket.IO cho phòng đấu giá
- * TV5 phụ trách integration này
+ * Manage realtime sync for auction room:
+ * - new bid updates
+ * - initial snapshot when joining room
+ * - auto rejoin after reconnect
  */
 export function useAuctionSocket(auctionId: string | undefined, initialLeaderBidderId?: string) {
   const { user } = useAuthStore();
@@ -45,7 +47,6 @@ export function useAuctionSocket(auctionId: string | undefined, initialLeaderBid
     setServerTimeOffsetMs,
     updateAuctionRealtimeStatus,
   } = useAuctionStore();
-  const joinedRef = useRef(false);
   const previousLeaderBidderIdRef = useRef<string | undefined>(initialLeaderBidderId);
 
   useEffect(() => {
@@ -74,7 +75,7 @@ export function useAuctionSocket(auctionId: string | undefined, initialLeaderBid
           (t) => (
             <div className="max-w-sm rounded-xl border border-orange-200 bg-white p-3 shadow-lg">
               <p className="text-sm font-medium text-gray-900">
-                ⚠️ Bạn đã bị vượt mức giá! Hãy đặt giá mới để tiếp tục dẫn đầu.
+                Ban da bi vuot muc gia. Hay dat gia moi de tiep tuc dan dau.
               </p>
               <button
                 type="button"
@@ -84,7 +85,7 @@ export function useAuctionSocket(auctionId: string | undefined, initialLeaderBid
                   scrollToBidInput();
                 }}
               >
-                Đặt giá ngay
+                Dat gia ngay
               </button>
             </div>
           ),
@@ -125,18 +126,19 @@ export function useAuctionSocket(auctionId: string | undefined, initialLeaderBid
     };
 
     const onConnect = () => {
-      if (!joinedRef.current) {
-        socket.emit('auction:join', { auctionId });
-        joinedRef.current = true;
-      }
+      socket.emit('auction:join', { auctionId });
+    };
+
+    const onConnectError = (error: Error) => {
+      toast.error(error.message || 'Khong ket noi duoc realtime');
     };
 
     if (socket.connected) {
       onConnect();
-    } else {
-      socket.on('connect', onConnect);
     }
 
+    socket.on('connect', onConnect);
+    socket.on('connect_error', onConnectError);
     socket.on('auction:snapshot', handleSnapshot);
     socket.on('auction:viewers', handleViewers);
     socket.on('bid:new', handleNewBidEvent);
@@ -183,6 +185,7 @@ export function useAuctionSocket(auctionId: string | undefined, initialLeaderBid
     return () => {
       socket.emit('auction:leave', { auctionId });
       socket.off('connect', onConnect);
+      socket.off('connect_error', onConnectError);
       socket.off('auction:snapshot', handleSnapshot);
       socket.off('auction:viewers', handleViewers);
       socket.off('bid:new', handleNewBidEvent);
@@ -192,7 +195,6 @@ export function useAuctionSocket(auctionId: string | undefined, initialLeaderBid
       socket.off('user:outbid');
       socket.off('error');
       setViewersCount(0);
-      joinedRef.current = false;
     };
   }, [
     auctionId,

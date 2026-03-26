@@ -1,13 +1,18 @@
 import type { Request, Response, NextFunction } from 'express';
 import { ZodError } from 'zod';
+import { logger } from '../utils/logger';
 
 export function errorMiddleware(
   err: Error,
-  _req: Request,
+  req: Request,
   res: Response,
   _next: NextFunction,
 ): void {
-  console.error('[ERROR]', err);
+  logger.error('Unhandled request error', {
+    method: req.method,
+    path: req.originalUrl,
+    error: err,
+  });
 
   if (err instanceof ZodError) {
     const errors: Record<string, string[]> = {};

@@ -41,7 +41,7 @@ export function connectSocket(): AppSocket {
 }
 
 export function disconnectSocket() {
-  if (socket?.connected) {
+  if (socket) {
     socket.disconnect();
     socket = null;
   }

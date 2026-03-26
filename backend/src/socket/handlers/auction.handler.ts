@@ -1,11 +1,12 @@
-import { type Server, type Socket } from 'socket.io';
 import type {
   ClientToServerEvents,
-  ServerToClientEvents,
   InterServerEvents,
+  ServerToClientEvents,
   SocketData,
 } from '@auction/shared';
+import { type Server, type Socket } from 'socket.io';
 import { getBidRealtimeSnapshot } from '../../modules/bids/bid.service';
+import { logger } from '../../utils/logger';
 
 type IO = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
 type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
@@ -19,6 +20,7 @@ export function registerAuctionHandlers(io: IO, socket: AppSocket) {
 
     const room = `auction:${auctionId}`;
     socket.join(room);
+
     const roomSize = io.sockets.adapter.rooms.get(room)?.size ?? 0;
     io.to(room).emit('auction:viewers', { auctionId, viewers: roomSize });
 
@@ -29,6 +31,18 @@ export function registerAuctionHandlers(io: IO, socket: AppSocket) {
       const message = error instanceof Error ? error.message : 'Cannot load realtime snapshot';
       socket.emit('error', { message });
     }
+
+    logger.debug(
+      'Auction room joined',
+      {
+        auctionId,
+        room,
+        viewers: roomSize,
+        userId: socket.data.userId,
+        username: socket.data.username,
+      },
+      'socket',
+    );
   });
 
   socket.on('auction:leave', ({ auctionId }) => {
@@ -38,5 +52,17 @@ export function registerAuctionHandlers(io: IO, socket: AppSocket) {
     socket.leave(room);
     const roomSize = io.sockets.adapter.rooms.get(room)?.size ?? 0;
     io.to(room).emit('auction:viewers', { auctionId, viewers: roomSize });
+
+    logger.debug(
+      'Auction room left',
+      {
+        auctionId,
+        room,
+        viewers: roomSize,
+        userId: socket.data.userId,
+        username: socket.data.username,
+      },
+      'socket',
+    );
   });
 }
