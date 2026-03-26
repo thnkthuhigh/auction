@@ -8,6 +8,43 @@ function isAuctionExpired(endTime: Date): boolean {
   return endTime.getTime() <= Date.now();
 }
 
+function mapBidForClient(bid: {
+  id: string;
+  amount: Prisma.Decimal;
+  createdAt: Date;
+  bidderId: string;
+  auctionId: string;
+  bidder: { username: string; avatar: string | null };
+}) {
+  return {
+    id: bid.id,
+    amount: Number(bid.amount),
+    createdAt: bid.createdAt.toISOString(),
+    bidderId: bid.bidderId,
+    bidderUsername: bid.bidder.username,
+    bidderAvatar: bid.bidder.avatar ?? undefined,
+    auctionId: bid.auctionId,
+  };
+}
+
+function validateBidAmount(amount: number, currentPrice: number, minBidStep: number) {
+  const minRequired = currentPrice + minBidStep;
+
+  if (amount < minRequired) {
+    throw new AppError(`Minimum bid is ${minRequired.toLocaleString('vi-VN')} VND`, 400);
+  }
+
+  const diffFromCurrent = amount - currentPrice;
+  if (diffFromCurrent % minBidStep !== 0) {
+    const roundedDiff = Math.ceil(diffFromCurrent / minBidStep) * minBidStep;
+    const nextValidBid = currentPrice + roundedDiff;
+    throw new AppError(
+      `Bid must follow step ${minBidStep.toLocaleString('vi-VN')} VND. Suggested: ${nextValidBid.toLocaleString('vi-VN')} VND`,
+      400,
+    );
+  }
+}
+
 export async function placeBid(bidderId: string, auctionId: string, amount: number) {
   if (!Number.isFinite(amount) || !Number.isInteger(amount) || amount <= 0) {
     throw new AppError('Số tiền đặt giá không hợp lệ', 400);
@@ -24,11 +61,7 @@ export async function placeBid(bidderId: string, auctionId: string, amount: numb
   if (isAuctionExpired(auction.endTime)) throw new AppError('Auction has ended');
 
   const currentPrice = Number(auction.currentPrice);
-  const minRequired = currentPrice + Number(auction.minBidStep);
-
-  if (amount < minRequired) {
-    throw new AppError(`Minimum bid is ${minRequired.toLocaleString('vi-VN')} VND`);
-  }
+  validateBidAmount(amount, currentPrice, Number(auction.minBidStep));
 
   const [bid, updatedAuction] = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const latestAuction = await tx.auction.findUnique({
@@ -47,12 +80,7 @@ export async function placeBid(bidderId: string, auctionId: string, amount: numb
       throw new AppError('Auction has ended');
     }
 
-    const liveCurrentPrice = Number(latestAuction.currentPrice);
-    const liveMinRequired = liveCurrentPrice + Number(latestAuction.minBidStep);
-
-    if (amount < liveMinRequired) {
-      throw new AppError(`Minimum bid is ${liveMinRequired.toLocaleString('vi-VN')} VND`);
-    }
+    validateBidAmount(amount, Number(latestAuction.currentPrice), Number(latestAuction.minBidStep));
 
     const newBid = await tx.bid.create({
       data: { amount, bidderId, auctionId },
@@ -75,15 +103,7 @@ export async function placeBid(bidderId: string, auctionId: string, amount: numb
   const io = getIO();
   const totalBids = await prisma.bid.count({ where: { auctionId } });
 
-  const bidPayload = {
-    id: bid.id,
-    amount: Number(bid.amount),
-    createdAt: bid.createdAt.toISOString(),
-    bidderId: bid.bidderId,
-    bidderUsername: bid.bidder.username,
-    bidderAvatar: bid.bidder.avatar ?? undefined,
-    auctionId,
-  };
+  const bidPayload = mapBidForClient(bid);
 
   io.to(`auction:${auctionId}`).emit('bid:new', {
     bid: bidPayload,
@@ -120,18 +140,55 @@ export async function getBidsByAuction(auctionId: string, page = 1, limit = 20) 
   ]);
 
   return {
-    data: bids.map((b: (typeof bids)[number]) => ({
-      id: b.id,
-      amount: Number(b.amount),
-      createdAt: b.createdAt.toISOString(),
-      bidderId: b.bidderId,
-      bidderUsername: b.bidder.username,
-      bidderAvatar: b.bidder.avatar,
-      auctionId,
-    })),
+    data: bids.map((b: (typeof bids)[number]) => mapBidForClient(b)),
     total,
     page,
     limit,
     totalPages: Math.ceil(total / limit),
+  };
+}
+
+export async function getBidRealtimeSnapshot(auctionId: string, limit = 20) {
+  const [auction, bids, totalBids] = await Promise.all([
+    prisma.auction.findUnique({
+      where: { id: auctionId },
+      select: {
+        id: true,
+        currentPrice: true,
+        status: true,
+        endTime: true,
+      },
+    }),
+    prisma.bid.findMany({
+      where: { auctionId },
+      include: {
+        bidder: { select: { username: true, avatar: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    }),
+    prisma.bid.count({ where: { auctionId } }),
+  ]);
+
+  if (!auction) {
+    throw new AppError('Auction not found', 404);
+  }
+
+  return {
+    auctionId,
+    currentPrice: Number(auction.currentPrice),
+    totalBids,
+    status: auction.status,
+    endsAt: auction.endTime.toISOString(),
+    serverTime: new Date().toISOString(),
+    bids: bids.map((bid) =>
+      mapBidForClient({
+        ...bid,
+        bidder: {
+          username: bid.bidder.username,
+          avatar: bid.bidder.avatar,
+        },
+      }),
+    ),
   };
 }

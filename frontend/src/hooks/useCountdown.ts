@@ -5,21 +5,22 @@ import { differenceInSeconds, parseISO } from 'date-fns';
  * Hook đếm ngược thời gian cho đấu giá
  * TV5 phụ trách
  */
-export function useCountdown(endTime: string | undefined) {
+export function useCountdown(endTime: string | undefined, serverTimeOffsetMs = 0) {
   const [secondsLeft, setSecondsLeft] = useState(0);
 
   useEffect(() => {
     if (!endTime) return;
 
     const update = () => {
-      const diff = differenceInSeconds(parseISO(endTime), new Date());
+      const nowByServer = new Date(Date.now() + serverTimeOffsetMs);
+      const diff = differenceInSeconds(parseISO(endTime), nowByServer);
       setSecondsLeft(Math.max(0, diff));
     };
 
     update();
     const interval = setInterval(update, 1000);
     return () => clearInterval(interval);
-  }, [endTime]);
+  }, [endTime, serverTimeOffsetMs]);
 
   const hours = Math.floor(secondsLeft / 3600);
   const minutes = Math.floor((secondsLeft % 3600) / 60);

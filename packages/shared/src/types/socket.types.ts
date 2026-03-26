@@ -11,6 +11,16 @@ export interface ClientToServerEvents {
 // Server → Client
 export interface ServerToClientEvents {
   'bid:new': (payload: { bid: Bid; currentPrice: number; totalBids: number }) => void;
+  'auction:snapshot': (payload: {
+    auctionId: string;
+    currentPrice: number;
+    totalBids: number;
+    bids: Bid[];
+    status: Auction['status'];
+    endsAt: string;
+    serverTime: string;
+  }) => void;
+  'auction:viewers': (payload: { auctionId: string; viewers: number }) => void;
   'auction:started': (payload: { auctionId: string; endsAt: string }) => void;
   'auction:ended': (payload: {
     auctionId: string;
@@ -29,6 +39,7 @@ export interface InterServerEvents {
 
 // Socket data attached per socket
 export interface SocketData {
-  userId: string;
-  username: string;
+  isAuthenticated: boolean;
+  userId?: string;
+  username?: string;
 }

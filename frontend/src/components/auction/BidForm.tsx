@@ -6,8 +6,31 @@ import type { Auction } from '@auction/shared';
 
 interface Props {
   auction: Auction;
-  onPlaceBid: (amount: number) => void;
+  onPlaceBid: (amount: number) => Promise<void>;
   isLoading?: boolean;
+}
+
+function getBidSubmitErrorMessage(error: unknown): string {
+  if (
+    typeof error === 'object' &&
+    error !== null &&
+    'response' in error &&
+    typeof error.response === 'object' &&
+    error.response !== null &&
+    'data' in error.response &&
+    typeof error.response.data === 'object' &&
+    error.response.data !== null &&
+    'message' in error.response.data &&
+    typeof error.response.data.message === 'string'
+  ) {
+    return error.response.data.message;
+  }
+
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  return 'Khong the gui gia dat. Vui long thu lai.';
 }
 
 export default function BidForm({ auction, onPlaceBid, isLoading }: Props) {
@@ -26,6 +49,8 @@ export default function BidForm({ auction, onPlaceBid, isLoading }: Props) {
     register,
     handleSubmit,
     formState: { errors },
+    setError,
+    clearErrors,
     reset,
   } = useForm<{ amount: number }>({
     resolver: zodResolver(schema),
@@ -33,10 +58,23 @@ export default function BidForm({ auction, onPlaceBid, isLoading }: Props) {
 
   const quickBids = [minBid, minBid + auction.minBidStep, minBid + auction.minBidStep * 2];
 
-  const onSubmit = ({ amount }: { amount: number }) => {
+  const submitBid = async (amount: number) => {
     if (!canBid) return;
-    onPlaceBid(amount);
-    reset();
+
+    clearErrors('amount');
+    try {
+      await onPlaceBid(amount);
+      reset();
+    } catch (error: unknown) {
+      setError('amount', {
+        type: 'server',
+        message: getBidSubmitErrorMessage(error),
+      });
+    }
+  };
+
+  const onSubmit = ({ amount }: { amount: number }) => {
+    void submitBid(amount);
   };
 
   const disabledReason =
@@ -86,7 +124,9 @@ export default function BidForm({ auction, onPlaceBid, isLoading }: Props) {
           <button
             key={amount}
             type="button"
-            onClick={() => canBid && onPlaceBid(amount)}
+            onClick={() => {
+              void submitBid(amount);
+            }}
             disabled={!canBid}
             className="rounded-2xl border border-blue-200 bg-blue-50 px-3 py-3 text-sm font-semibold text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
           >
@@ -99,7 +139,12 @@ export default function BidForm({ auction, onPlaceBid, isLoading }: Props) {
         <label className="block">
           <span className="mb-1 block text-sm font-medium text-slate-700">Nhap gia tuy chinh</span>
           <input
-            {...register('amount', { valueAsNumber: true })}
+            {...register('amount', {
+              valueAsNumber: true,
+              onChange: () => {
+                clearErrors('amount');
+              },
+            })}
             id="bid-amount-input"
             type="number"
             step="1"

@@ -7,12 +7,21 @@ interface Props {
   startTime: string;
   endTime: string;
   status: string;
+  serverTimeOffsetMs?: number;
 }
 
-export default function AuctionTimer({ startTime, endTime, status }: Props) {
+export default function AuctionTimer({
+  startTime,
+  endTime,
+  status,
+  serverTimeOffsetMs = 0,
+}: Props) {
   const countdownTarget =
     status === 'ACTIVE' ? endTime : status === 'PENDING' ? startTime : undefined;
-  const { hours, minutes, seconds, isExpired, isUrgent } = useCountdown(countdownTarget);
+  const { hours, minutes, seconds, isExpired, isUrgent } = useCountdown(
+    countdownTarget,
+    serverTimeOffsetMs,
+  );
 
   const formattedStartTime = format(new Date(startTime), 'HH:mm dd/MM/yyyy', { locale: vi });
   const formattedEndTime = format(new Date(endTime), 'HH:mm dd/MM/yyyy', { locale: vi });
@@ -150,9 +159,7 @@ export default function AuctionTimer({ startTime, endTime, status }: Props) {
 
 function Colon({ urgent }: { urgent: boolean }) {
   return (
-    <span className={`text-2xl font-bold ${urgent ? 'text-rose-600' : 'text-blue-600'}`}>
-      :
-    </span>
+    <span className={`text-2xl font-bold ${urgent ? 'text-rose-600' : 'text-blue-600'}`}>:</span>
   );
 }
 

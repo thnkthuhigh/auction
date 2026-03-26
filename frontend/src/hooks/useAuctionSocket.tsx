@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { connectSocket, getSocket } from '@/services/socket.service';
+import { connectSocket } from '@/services/socket.service';
 import { useAuctionStore } from '@/store/auction.store';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '@/store/auth.store';
@@ -16,13 +16,35 @@ interface LegacyBidEventSocket {
   off: (event: 'new_bid', listener: (payload: BidRealtimePayload) => void) => void;
 }
 
+interface AuctionSnapshotPayload {
+  auctionId: string;
+  currentPrice: number;
+  totalBids: number;
+  bids: Bid[];
+  status: 'PENDING' | 'REVIEW' | 'ACTIVE' | 'ENDED' | 'CANCELLED';
+  endsAt: string;
+  serverTime: string;
+}
+
+interface AuctionViewersPayload {
+  auctionId: string;
+  viewers: number;
+}
+
 /**
  * Hook quản lý Socket.IO cho phòng đấu giá
  * TV5 phụ trách integration này
  */
 export function useAuctionSocket(auctionId: string | undefined, initialLeaderBidderId?: string) {
   const { user } = useAuthStore();
-  const { addLiveBid, updateAuctionPrice } = useAuctionStore();
+  const {
+    addLiveBid,
+    setLiveBids,
+    updateAuctionPrice,
+    setViewersCount,
+    setServerTimeOffsetMs,
+    updateAuctionRealtimeStatus,
+  } = useAuctionStore();
   const joinedRef = useRef(false);
   const previousLeaderBidderIdRef = useRef<string | undefined>(initialLeaderBidderId);
 
@@ -75,6 +97,33 @@ export function useAuctionSocket(auctionId: string | undefined, initialLeaderBid
       previousLeaderBidderIdRef.current = bid.bidderId;
     };
 
+    const handleSnapshot = ({
+      auctionId: payloadAuctionId,
+      currentPrice,
+      totalBids,
+      bids,
+      status,
+      endsAt,
+      serverTime,
+    }: AuctionSnapshotPayload) => {
+      if (payloadAuctionId !== auctionId) return;
+
+      setLiveBids(bids);
+      updateAuctionPrice(currentPrice, totalBids);
+      updateAuctionRealtimeStatus({ status, endTime: endsAt });
+      previousLeaderBidderIdRef.current = bids[0]?.bidderId;
+
+      const offsetMs = new Date(serverTime).getTime() - Date.now();
+      if (Number.isFinite(offsetMs)) {
+        setServerTimeOffsetMs(offsetMs);
+      }
+    };
+
+    const handleViewers = ({ auctionId: payloadAuctionId, viewers }: AuctionViewersPayload) => {
+      if (payloadAuctionId !== auctionId) return;
+      setViewersCount(viewers);
+    };
+
     const onConnect = () => {
       if (!joinedRef.current) {
         socket.emit('auction:join', { auctionId });
@@ -88,35 +137,43 @@ export function useAuctionSocket(auctionId: string | undefined, initialLeaderBid
       socket.on('connect', onConnect);
     }
 
+    socket.on('auction:snapshot', handleSnapshot);
+    socket.on('auction:viewers', handleViewers);
     socket.on('bid:new', handleNewBidEvent);
     legacySocket.on('new_bid', handleNewBidEvent);
 
     socket.on('auction:started', ({ endsAt }) => {
+      updateAuctionRealtimeStatus({ status: 'ACTIVE', endTime: endsAt });
       toast.success(
-        `🏁 Đấu giá đã bắt đầu! Kết thúc lúc ${new Date(endsAt).toLocaleTimeString('vi-VN')}`,
+        `Dau gia da bat dau. Ket thuc luc ${new Date(endsAt).toLocaleTimeString('vi-VN')}`,
       );
     });
 
     socket.on('auction:ended', ({ winner, finalPrice }) => {
+      updateAuctionRealtimeStatus({
+        status: 'ENDED',
+        winnerId: winner?.id ?? null,
+        winnerUsername: winner?.username,
+        currentPrice: finalPrice,
+      });
+
       if (winner) {
         if (winner.id === user?.id) {
           toast.success(
-            `🎉 Chúc mừng! Bạn đã thắng với giá ${finalPrice.toLocaleString('vi-VN')} VNĐ`,
+            `Chuc mung! Ban da thang voi gia ${finalPrice.toLocaleString('vi-VN')} VND`,
           );
         } else {
           toast(
-            `🏆 Đấu giá kết thúc! Người thắng: ${winner.username} – ${finalPrice.toLocaleString('vi-VN')} VNĐ`,
+            `Dau gia ket thuc. Nguoi thang: ${winner.username} - ${finalPrice.toLocaleString('vi-VN')} VND`,
           );
         }
       } else {
-        toast('⚠️ Đấu giá kết thúc mà không có lượt đặt giá nào.');
+        toast('Dau gia ket thuc va khong co luot dat gia nao.');
       }
     });
 
     socket.on('user:outbid', ({ newPrice, newBidder }) => {
-      toast(`📢 Bạn bị vượt giá! ${newBidder} đặt ${newPrice.toLocaleString('vi-VN')} VNĐ`, {
-        icon: '⬆️',
-      });
+      toast(`Ban bi vuot gia! ${newBidder} dat ${newPrice.toLocaleString('vi-VN')} VND`);
     });
 
     socket.on('error', ({ message }) => {
@@ -126,19 +183,31 @@ export function useAuctionSocket(auctionId: string | undefined, initialLeaderBid
     return () => {
       socket.emit('auction:leave', { auctionId });
       socket.off('connect', onConnect);
+      socket.off('auction:snapshot', handleSnapshot);
+      socket.off('auction:viewers', handleViewers);
       socket.off('bid:new', handleNewBidEvent);
       legacySocket.off('new_bid', handleNewBidEvent);
       socket.off('auction:started');
       socket.off('auction:ended');
       socket.off('user:outbid');
       socket.off('error');
+      setViewersCount(0);
       joinedRef.current = false;
     };
-  }, [auctionId, user?.id, addLiveBid, updateAuctionPrice]);
+  }, [
+    auctionId,
+    user?.id,
+    addLiveBid,
+    setLiveBids,
+    updateAuctionPrice,
+    setViewersCount,
+    setServerTimeOffsetMs,
+    updateAuctionRealtimeStatus,
+  ]);
 
   const placeBid = (amount: number) => {
     if (!auctionId) return;
-    const socket = getSocket();
+    const socket = connectSocket();
     socket.emit('bid:place', { auctionId, amount });
   };
 

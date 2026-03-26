@@ -81,8 +81,15 @@ const STATUS_META: Record<
 export default function AuctionDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { user, isAuthenticated } = useAuthStore();
-  const { liveBids, setActiveAuction, activeAuction, resetAuction } = useAuctionStore();
-  const { placeBid } = useAuctionSocket(id);
+  const {
+    liveBids,
+    setActiveAuction,
+    activeAuction,
+    resetAuction,
+    viewersCount,
+    serverTimeOffsetMs,
+  } = useAuctionStore();
+  useAuctionSocket(id);
   const queryClient = useQueryClient();
 
   const {
@@ -111,6 +118,14 @@ export default function AuctionDetailPage() {
     },
     onError: (mutationError: { response?: { data?: { message?: string } } }) => {
       toast.error(mutationError.response?.data?.message || 'Gui duyet that bai');
+    },
+  });
+
+  const placeBidMutation = useMutation({
+    mutationFn: (amount: number) => auctionService.placeBid(id!, amount),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['auction', id] });
+      queryClient.invalidateQueries({ queryKey: ['bids', id] });
     },
   });
 
@@ -180,11 +195,18 @@ export default function AuctionDetailPage() {
           currentBid.amount > maxBid.amount ? currentBid : maxBid,
         )
       : null;
+  const leaderName = winnerBid?.bidderUsername;
 
   const sellerName =
-    displayAuction.sellerUsername || sourceAuction.sellerUsername || sourceAuction.seller?.username || 'Nguoi ban';
+    displayAuction.sellerUsername ||
+    sourceAuction.sellerUsername ||
+    sourceAuction.seller?.username ||
+    'Nguoi ban';
   const categoryName =
-    displayAuction.categoryName || sourceAuction.categoryName || sourceAuction.category?.name || 'Chua phan loai';
+    displayAuction.categoryName ||
+    sourceAuction.categoryName ||
+    sourceAuction.category?.name ||
+    'Chua phan loai';
   const winnerName =
     winnerBid?.bidderUsername ||
     displayAuction.winnerUsername ||
@@ -200,6 +222,10 @@ export default function AuctionDetailPage() {
   );
   const statusMeta = STATUS_META[displayAuction.status];
 
+  const handlePlaceBid = async (amount: number) => {
+    await placeBidMutation.mutateAsync(amount);
+  };
+
   return (
     <div className="space-y-6">
       <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.18),_transparent_35%),linear-gradient(135deg,#f8fbff_0%,#ffffff_46%,#eff6ff_100%)] p-6 shadow-sm sm:p-8">
@@ -213,7 +239,9 @@ export default function AuctionDetailPage() {
           </Link>
 
           <div className="flex flex-wrap items-center gap-2">
-            <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusMeta.badgeClass}`}>
+            <span
+              className={`rounded-full px-3 py-1 text-xs font-semibold ${statusMeta.badgeClass}`}
+            >
               {statusMeta.label}
             </span>
             <span className="rounded-full border border-slate-200 bg-white/80 px-3 py-1 text-xs font-semibold text-slate-600">
@@ -249,6 +277,7 @@ export default function AuctionDetailPage() {
               value={`${displayAuction.currentPrice.toLocaleString('vi-VN')} đ`}
             />
             <HeroMetric label="Tong luot bid" value={String(displayAuction.totalBids)} />
+            <HeroMetric label="Nguoi dang xem" value={String(viewersCount)} />
             <HeroMetric
               label="Gia khoi diem"
               value={`${sourceAuction.startPrice.toLocaleString('vi-VN')} đ`}
@@ -349,7 +378,27 @@ export default function AuctionDetailPage() {
             startTime={sourceAuction.startTime}
             endTime={sourceAuction.endTime}
             status={displayAuction.status}
+            serverTimeOffsetMs={serverTimeOffsetMs}
           />
+
+          <section className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
+              Live ranking
+            </p>
+            <h3 className="mt-1 text-lg font-semibold text-slate-900">Nguoi dang Top 1</h3>
+            {leaderName ? (
+              <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+                <p className="text-sm font-medium text-emerald-800">{leaderName}</p>
+                <p className="mt-1 text-sm text-emerald-700">
+                  {winnerBid?.amount.toLocaleString('vi-VN')} đ
+                </p>
+              </div>
+            ) : (
+              <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                Chua co luot dat gia nao trong phien nay.
+              </div>
+            )}
+          </section>
 
           {isCompleted && winnerName ? (
             <WinnerCard
@@ -370,7 +419,11 @@ export default function AuctionDetailPage() {
               </p>
             </section>
           ) : isBuyerView ? (
-            <BidForm auction={displayAuction} onPlaceBid={placeBid} />
+            <BidForm
+              auction={displayAuction}
+              onPlaceBid={handlePlaceBid}
+              isLoading={placeBidMutation.isPending}
+            />
           ) : !isAuthenticated ? (
             <section className="rounded-[24px] border border-blue-200 bg-blue-50 p-5 shadow-sm">
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
@@ -460,15 +513,7 @@ function HeroMetric({ label, value }: { label: string; value: string }) {
   );
 }
 
-function InfoCard({
-  icon,
-  label,
-  value,
-}: {
-  icon: ReactNode;
-  label: string;
-  value: string;
-}) {
+function InfoCard({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
   return (
     <div className="rounded-[22px] border border-slate-200 px-4 py-4">
       <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
