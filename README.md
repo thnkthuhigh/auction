@@ -406,6 +406,13 @@ main (protected)
 │   └── feature/auction-room-fe     → TV5
 ```
 
+### Quy trình Jira + Release (AS)
+
+1. Luôn làm việc trên nhánh feature/hotfix tách từ `develop`, không push trực tiếp vào `main`.
+2. Mỗi commit/PR gắn đúng mã issue Jira hiện có (AS-xxx) để auto-link với board.
+3. Merge vào `develop` trước để QA nội bộ (Mẫn test), chỉ promote lên `main` khi đã đạt tiêu chí release.
+4. Deploy production chỉ thực hiện sau khi benchmark realtime và smoke test nghiệp vụ đều đạt.
+
 ### Quy tắc commit (Conventional Commits)
 
 ```
@@ -554,3 +561,220 @@ npm run dev:frontend
 4. **Types chia sẻ** – đặt trong `packages/shared/src/types/`
 5. **Gặp khó khăn** – tạo GitHub Issue và tag trưởng nhóm
 6. **API thay đổi** – cập nhật Postman Collection và báo team
+
+---
+
+## ✅ Điều kiện trước khi deploy production
+
+1. `npm run lint`, `npm run type-check`, `npm run build` đều pass.
+2. Benchmark production-like không drop event và đạt:
+   - `join_cold_500 < 1000ms` (từ lúc connect xong đến snapshot đầu tiên)
+   - `join_warm_500 < 150ms`
+   - `fanout_500 < 150ms` local (`< 100ms` ở staging/prod)
+3. Smoke test nghiệp vụ pass:
+   - Seller gửi duyệt → Admin duyệt → tạo phiên → Buyer vào phòng → đặt giá realtime → chốt phiên.
+4. Jira issue liên quan đã gắn commit/PR và chuyển đúng trạng thái theo flow team.
+
+---
+
+## 📊 Báo Cáo Hiệu Năng Realtime (Dùng Để Trình Bày Với Giảng Viên)
+
+Mẫu báo cáo 1 trang có thể điền nhanh: [docs/bao-cao-hieu-nang-realtime.md](docs/bao-cao-hieu-nang-realtime.md)
+
+### Mình đã tối ưu gì và vì sao
+
+1. **Socket.IO ưu tiên `websocket` thay vì fallback `polling`**
+   - **Dùng gì:** `SOCKET_TRANSPORTS=websocket` ở backend và `VITE_SOCKET_TRANSPORTS=websocket` ở frontend.
+   - **Vì sao:** giảm overhead handshake/polling, giữ độ trễ realtime ổn định hơn khi nhiều người cùng tham gia.
+
+2. **Backend chạy đa tiến trình (cluster)**
+   - **Dùng gì:** `CLUSTER_WORKERS` trong `backend/src/index.ts`.
+   - **Vì sao:** tận dụng nhiều lõi CPU để xử lý nhiều kết nối đồng thời thay vì dồn vào 1 process.
+
+3. **Chỉ cho 1 worker chạy scheduler**
+   - **Dùng gì:** `SCHEDULER_ENABLED` được gán theo worker slot.
+   - **Vì sao:** tránh nhiều worker cùng tick cron làm trùng xử lý start/end phiên.
+
+4. **Cache snapshot realtime bằng Redis + memory cache ngắn hạn**
+   - **Dùng gì:** `auctionCurrentPrice`, `auctionBidCount`, `auctionRecentBids` + in-memory snapshot TTL trong `bid.service.ts`.
+   - **Vì sao:** giảm query DB lặp khi nhiều client `auction:join` cùng lúc.
+
+5. **Debounce broadcast số người xem**
+   - **Dùng gì:** `VIEWER_BROADCAST_DEBOUNCE_MS` trong `auction.handler.ts`.
+   - **Vì sao:** tránh spam event `auction:viewers` mỗi lần join/leave gây bão broadcast.
+
+6. **Tối ưu index cho bảng bids**
+   - **Dùng gì:** migration `20260329123000_optimize_bid_indexes`.
+   - **Vì sao:** tăng tốc query lấy top bid/lịch sử bid theo `auctionId + amount + createdAt`.
+
+7. **Giảm re-render phía frontend**
+   - **Dùng gì:** `applyRealtimeBid`, `applySnapshot` trong Zustand store.
+   - **Vì sao:** gom cập nhật state để UI mượt hơn khi bid dồn dập.
+
+8. **Redis realtime snapshot cho `auction:join`**
+   - **Dùng gì:** key `auctionRealtimeSnapshot` + in-flight dedupe trong `bid.service.ts`.
+   - **Vì sao:** giảm truy vấn lặp khi nhiều client cùng join 1 phòng đấu giá.
+
+9. **Scheduler chạy theo batch + chống chồng tick**
+   - **Dùng gì:** `SCHEDULER_BATCH_LIMIT` + cờ `isSchedulerTickRunning` trong `auction-scheduler.service.ts`.
+   - **Vì sao:** giảm tải DB khi nhiều phiên đến giờ start/end cùng lúc.
+
+10. **Prisma query log bật theo cờ**
+
+- **Dùng gì:** `DB_QUERY_LOG_ENABLED` trong `database.ts`.
+- **Vì sao:** bỏ overhead log query ở benchmark/production, chỉ bật khi cần truy vết sâu.
+
+### Biến môi trường liên quan hiệu năng (backend)
+
+- `CLUSTER_WORKERS`: số worker backend (khuyến nghị staging/prod: 2-4 hoặc theo số core).
+- `SCHEDULER_ENABLED`: bật/tắt cron scheduler trên worker hiện tại.
+- `SCHEDULER_BATCH_LIMIT`: số phiên tối đa xử lý mỗi tick scheduler.
+- `SOCKET_TRANSPORTS`: danh sách transport (`websocket` hoặc `websocket,polling`).
+- `SOCKET_PER_MESSAGE_DEFLATE`: bật/tắt nén gói socket.
+- `SOCKET_REDIS_ADAPTER_ENABLED`: bật adapter Redis cho Socket.IO (auto bật khi `CLUSTER_WORKERS > 1`).
+- `VIEWER_BROADCAST_DEBOUNCE_MS`: thời gian debounce broadcast viewer count.
+- `JOIN_SNAPSHOT_BIDS_LIMIT`: số bản ghi bid gửi kèm snapshot lúc `auction:join` (khuyến nghị `5`).
+- `BID_REDIS_SNAPSHOT_CACHE_TTL_SECONDS`: TTL cache snapshot realtime ở Redis cho join burst.
+- `DB_QUERY_LOG_ENABLED`: bật query log Prisma khi cần debug sâu (mặc định khuyến nghị `false`).
+- `DB_LOG_SKIP_SOCKET`: bỏ ghi DB log cho event socket connect/disconnect để giảm tải I/O.
+- `BID_RATE_LIMIT_WINDOW_MS`, `BID_RATE_LIMIT_MAX_REQUESTS`: chống spam bid.
+- `BID_SNAPSHOT_CACHE_TTL_MS`, `BID_SNAPSHOT_BIDS_LIMIT`, `BID_CACHE_TTL_SECONDS`: tuning cache snapshot và bid feed.
+
+### Cách chạy benchmark để làm báo cáo
+
+1. Chuẩn bị dữ liệu:
+
+```bash
+npm run docker:up
+npm run prisma:migrate
+npm run prisma:seed
+npm run build --workspace=backend
+```
+
+2. Profile mặc định local (đo baseline):
+
+```powershell
+# Dùng giá trị trong backend/.env (thường 1 worker)
+npm run start --workspace=backend
+```
+
+3. Profile production-like (đo trước deploy):
+
+```powershell
+$env:NODE_ENV='production'
+$env:CLUSTER_WORKERS='2'
+$env:SCHEDULER_ENABLED='true'
+$env:SOCKET_TRANSPORTS='websocket'
+$env:SOCKET_PER_MESSAGE_DEFLATE='false'
+$env:SOCKET_REDIS_ADAPTER_ENABLED='true'
+$env:DB_QUERY_LOG_ENABLED='false'
+npm run start --workspace=backend
+```
+
+4. Chạy benchmark realtime (terminal khác):
+
+```bash
+npm run perf:realtime
+```
+
+5. Nếu muốn tùy chỉnh số client theo mẫu `joinColdA joinColdB joinWarm fanoutA fanoutB`:
+
+```bash
+npm run perf:realtime -- 100 300 300 100 300
+```
+
+6. Nếu muốn chỉ đo join và bỏ fanout:
+
+```bash
+node scripts/realtime-benchmark.mjs --skipFanout
+```
+
+### Tiêu chí đọc kết quả (đề xuất báo cáo)
+
+- `connect_cold_500`: đo thời gian mở kết nối websocket từ đầu (phụ thuộc mạnh vào CPU/mạng máy benchmark).
+- `join_cold_500`: đo thời gian từ lúc socket đã connect tới lúc nhận snapshot đầu tiên; mục tiêu release `< 1000ms`.
+- `join_warm_500`: đã có kết nối sẵn, chỉ join room; mục tiêu `< 150ms` p95.
+- `fanout_500`: 1 bid phát tới 500 client; mục tiêu `< 150ms` p95 local và `< 100ms` khi staging/prod đủ tài nguyên.
+
+### Kết quả benchmark gần nhất (30/03/2026 - local, sau tối ưu)
+
+Profile mặc định local (`backend/.env`, thường 1 worker):
+
+- `connect_cold_200`: p95 `1240ms`, p99 `1245ms`
+- `connect_cold_500`: p95 `4274ms`, p99 `4287ms`
+- `join_cold_500`: p95 `1300ms`, p99 `1589ms`
+- `join_warm_500`: p95 `438ms`, p99 `457ms`
+- `fanout_500`: p95 `123ms`, p99 `134ms`
+
+Profile production-like (`NODE_ENV=production`, `CLUSTER_WORKERS=2`, Redis adapter bật):
+
+- `connect_cold_200`: p95 `1199ms`, p99 `1220ms`
+- `connect_cold_500`: p95 `3173ms`, p99 `3286ms`
+- `join_cold_500`: p95 `168ms`, p99 `197ms`
+- `join_warm_500`: p95 `129ms`, p99 `130ms`
+- `fanout_500`: p95 `127ms`, p99 `128ms`
+
+Nhận xét nhanh:
+
+- Realtime sau khi vào phòng (`join_*`, `fanout_*`) đã ổn định ở tải 200-500 client và không drop event.
+- Nút nghẽn chính còn lại là `connect_cold_*` khi mở số lượng websocket mới cực lớn cùng lúc trên cùng 1 máy benchmark.
+
+> Ghi chú khi báo cáo: kết quả local thường thấp hơn production về network và cũng dễ nghẽn CPU khi mở quá nhiều socket cùng lúc trên 1 máy. Vì vậy cần nhấn mạnh thêm benchmark trên staging/prod để kết luận cuối.
+
+---
+
+## 💳 Luồng Tài Chính Đấu Giá (Đã triển khai)
+
+1. Khi người dùng đang dẫn đầu giá:
+   - Hệ thống giữ tiền tạm vào `heldAmount` của phiên và gắn `heldBidderId`.
+2. Khi có người khác vượt giá:
+   - Người dẫn đầu cũ được hoàn tiền ngay lập tức.
+   - Người mới dẫn đầu bị giữ tiền theo mức bid mới.
+3. Khi Admin tạm dừng hoặc hủy phiên:
+   - Tiền đang giữ được hoàn lại cho người đang dẫn đầu.
+   - `heldBidderId` và `heldAmount` được reset về `null/0`.
+4. Khi phiên kết thúc:
+   - Hệ thống chốt `winnerId`, chuyển tiền cho seller, và xóa trạng thái giữ tiền.
+   - Nếu có chênh lệch giữ tiền do dữ liệu cũ, hệ thống tự cân bằng (trừ/hoàn phần thiếu hoặc dư).
+
+---
+
+## 🛡️ Chống Bid Trùng (Idempotency - 30/03/2026)
+
+Mục tiêu: khi user click nhanh, double-click, hoặc retry do mất mạng thì server chỉ ghi nhận **1 bid hợp lệ** cho cùng một yêu cầu.
+
+Đã triển khai:
+
+1. Database:
+   - Thêm `bids.clientRequestId` (nullable).
+   - Unique key: `(bidderId, auctionId, clientRequestId)`.
+2. Backend bid service:
+   - Nhận `clientRequestId` từ REST và Socket.
+   - Redis lock ngắn hạn để chặn race cùng request.
+   - Redis cache kết quả để retry trả về cùng response.
+   - Fallback theo DB (đọc bid đã tạo) khi gặp race/unique conflict.
+3. Frontend:
+   - Mỗi lần submit bid tạo `clientRequestId` mới (`crypto.randomUUID()`).
+   - Gửi kèm request id cho cả bid thường và quick bid.
+4. Cấu hình môi trường mới:
+   - `BID_IDEMPOTENCY_RESULT_TTL_SECONDS`
+   - `BID_IDEMPOTENCY_LOCK_TTL_MS`
+   - `BID_IDEMPOTENCY_WAIT_TIMEOUT_MS`
+   - `BID_IDEMPOTENCY_POLL_INTERVAL_MS`
+
+Kiểm tra nhanh đã chạy:
+
+- Gửi 2 request `/api/bids` đồng thời cùng `clientRequestId`:
+  - `increment = 1`
+  - `sameBidId = true`
+  - Không tạo bản ghi bid trùng.
+
+Benchmark sau cập nhật (30/03/2026, local):
+
+- `join_cold_200`: p95 `142ms`
+- `join_cold_500`: p95 `168ms`
+- `join_warm_500`: p95 `129ms`
+- `fanout_200`: p95 `84ms`
+- `fanout_500`: p95 `127ms`
+
+Kết luận ngắn: thêm idempotency không làm lệch realtime; hệ thống vẫn giữ được tốc độ fanout tốt ở tải 200-500 client trong test local sạch.

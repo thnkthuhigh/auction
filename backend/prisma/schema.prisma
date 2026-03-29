@@ -16,11 +16,12 @@ enum Role {
 }
 
 enum AuctionStatus {
-  PENDING   // Bản nháp – chờ seller gửi duyệt
-  REVIEW    // Đã gửi – chờ admin duyệt
-  ACTIVE    // Đang diễn ra
-  ENDED     // Đã kết thúc
-  CANCELLED // Đã huỷ
+  PENDING   // Draft
+  REVIEW    // Waiting admin review
+  ACTIVE    // Auction is running
+  ENDED     // Auction finished
+  SUSPENDED // Paused by admin for verification/violation handling
+  CANCELLED // Cancelled by admin
 }
 
 enum AuctionReviewStatus {
@@ -38,23 +39,24 @@ enum SystemLogLevel {
 }
 
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  username  String   @unique
-  password  String
-  avatar    String?
-  balance   Decimal  @default(0) @db.Decimal(18, 2)
-  role      Role     @default(USER)
-  isActive  Boolean  @default(true)
-  lockedAt  DateTime?
+  id         String   @id @default(uuid())
+  email      String   @unique
+  username   String   @unique
+  password   String
+  avatar     String?
+  balance    Decimal  @default(0) @db.Decimal(18, 2)
+  role       Role     @default(USER)
+  isActive   Boolean  @default(true)
+  lockedAt   DateTime?
   lockReason String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   // Relations
   auctions         Auction[] @relation("AuctionSeller")
   bids             Bid[]
   wonAuctions      Auction[] @relation("AuctionWinner")
+  heldAuctions     Auction[] @relation("AuctionHeldBidder")
   reviewedAuctions Auction[] @relation("AuctionReviewedBy")
 
   @@map("users")
@@ -81,6 +83,7 @@ model Auction {
   reviewStatus AuctionReviewStatus @default(PENDING_REVIEW)
   reviewNote   String?
   reviewedAt   DateTime?
+  heldAmount   Decimal             @default(0) @db.Decimal(18, 2)
   startTime    DateTime
   endTime      DateTime
   createdAt    DateTime            @default(now())
@@ -93,6 +96,8 @@ model Auction {
   winnerId     String?
   reviewedBy   User?    @relation("AuctionReviewedBy", fields: [reviewedById], references: [id])
   reviewedById String?
+  heldBidder   User?    @relation("AuctionHeldBidder", fields: [heldBidderId], references: [id])
+  heldBidderId String?
   category     Category @relation(fields: [categoryId], references: [id])
   categoryId   String
   bids         Bid[]
@@ -101,12 +106,14 @@ model Auction {
   @@index([reviewStatus])
   @@index([endTime])
   @@index([sellerId])
+  @@index([heldBidderId])
   @@map("auctions")
 }
 
 model Bid {
   id        String   @id @default(uuid())
   amount    Decimal  @db.Decimal(18, 2)
+  clientRequestId String?
   createdAt DateTime @default(now())
 
   // Relations
@@ -116,7 +123,11 @@ model Bid {
   auctionId String
 
   @@index([auctionId])
+  @@index([auctionId, createdAt(sort: Desc)])
+  @@index([auctionId, amount(sort: Desc), createdAt, id])
   @@index([bidderId])
+  @@index([clientRequestId])
+  @@unique([bidderId, auctionId, clientRequestId])
   @@map("bids")
 }
 

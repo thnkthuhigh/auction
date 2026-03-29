@@ -24,6 +24,7 @@ const ACTIVE_LEVEL = resolveLogLevel();
 const APP_NAME = process.env.APP_NAME || 'auction-backend';
 const DB_LOG_ENABLED = process.env.DB_LOG_ENABLED !== 'false';
 const DB_LOG_SKIP_HTTP = process.env.DB_LOG_SKIP_HTTP !== 'false';
+const DB_LOG_SKIP_SOCKET = process.env.DB_LOG_SKIP_SOCKET !== 'false';
 const DB_LOG_MIN_LEVEL = resolvePersistLevel();
 let persistFnPromise: Promise<PersistSystemLogFn> | null = null;
 
@@ -40,6 +41,7 @@ function shouldLog(level: LogLevel): boolean {
 function shouldPersist(level: LogLevel, source: LogSource): boolean {
   if (!DB_LOG_ENABLED) return false;
   if (DB_LOG_SKIP_HTTP && source === 'http') return false;
+  if (DB_LOG_SKIP_SOCKET && source === 'socket') return false;
   return LEVEL_WEIGHT[level] >= LEVEL_WEIGHT[DB_LOG_MIN_LEVEL];
 }
 

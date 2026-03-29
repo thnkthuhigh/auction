@@ -35,6 +35,13 @@ auctionRoutes.get(
   auctionController.getAdminMonitoring,
 );
 
+auctionRoutes.get(
+  '/admin/system-logs',
+  authMiddleware,
+  requireAdmin,
+  auctionController.getAdminSystemLogs,
+);
+
 auctionRoutes.patch(
   '/:id/review',
   authMiddleware,
@@ -65,6 +72,14 @@ auctionRoutes.patch(
   requireAdmin,
   validate(cancelAuctionSessionSchema),
   auctionController.cancelAuctionSession,
+);
+
+auctionRoutes.patch(
+  '/:id/session/suspend',
+  authMiddleware,
+  requireAdmin,
+  validate(cancelAuctionSessionSchema),
+  auctionController.suspendAuctionSession,
 );
 
 // ===== Public detail route =====

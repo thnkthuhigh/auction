@@ -11,9 +11,8 @@ import type { AuctionStatus } from '@auction/shared';
 const STATUS_FILTERS: { label: string; value: AuctionStatus | '' }[] = [
   { label: 'Tất cả', value: '' },
   { label: 'Đang diễn ra', value: 'ACTIVE' },
-  { label: 'Sắp diễn ra', value: 'PENDING' },
+  { label: 'Sắp mở', value: 'PENDING' },
   { label: 'Đã kết thúc', value: 'ENDED' },
-  { label: 'Đã huỷ', value: 'CANCELLED' },
 ];
 
 const SORT_OPTIONS = [
@@ -34,7 +33,9 @@ function parsePositivePage(value: string | null) {
 }
 
 function parseStatus(value: string | null): AuctionStatus | '' {
-  return STATUS_FILTERS.some((filter) => filter.value === value) ? (value as AuctionStatus | '') : '';
+  return STATUS_FILTERS.some((filter) => filter.value === value)
+    ? (value as AuctionStatus | '')
+    : '';
 }
 
 function parseSortValue(value: string | null) {
@@ -44,7 +45,9 @@ function parseSortValue(value: string | null) {
 export default function AuctionListPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState(() => searchParams.get('search') ?? '');
-  const [status, setStatus] = useState<AuctionStatus | ''>(() => parseStatus(searchParams.get('status')));
+  const [status, setStatus] = useState<AuctionStatus | ''>(() =>
+    parseStatus(searchParams.get('status')),
+  );
   const [categoryId, setCategoryId] = useState(() => searchParams.get('categoryId') ?? '');
   const [sortValue, setSortValue] = useState(() => parseSortValue(searchParams.get('sort')));
   const [page, setPage] = useState(() => parsePositivePage(searchParams.get('page')));
@@ -60,25 +63,11 @@ export default function AuctionListPage() {
     const nextParams = new URLSearchParams();
     const trimmedSearch = search.trim();
 
-    if (trimmedSearch) {
-      nextParams.set('search', trimmedSearch);
-    }
-
-    if (status) {
-      nextParams.set('status', status);
-    }
-
-    if (categoryId) {
-      nextParams.set('categoryId', categoryId);
-    }
-
-    if (sortValue !== DEFAULT_SORT_VALUE) {
-      nextParams.set('sort', sortValue);
-    }
-
-    if (page > 1) {
-      nextParams.set('page', String(page));
-    }
+    if (trimmedSearch) nextParams.set('search', trimmedSearch);
+    if (status) nextParams.set('status', status);
+    if (categoryId) nextParams.set('categoryId', categoryId);
+    if (sortValue !== DEFAULT_SORT_VALUE) nextParams.set('sort', sortValue);
+    if (page > 1) nextParams.set('page', String(page));
 
     const nextQueryString = nextParams.toString();
     if (nextQueryString !== currentQueryString) {
@@ -88,15 +77,11 @@ export default function AuctionListPage() {
     }
   }, [categoryId, currentQueryString, page, search, setSearchParams, sortValue, status]);
 
-  const {
-    data,
-    isLoading,
-    isError,
-    error,
-    isFetching,
-    refetch,
-  } = useQuery({
-    queryKey: ['auctions', { search: normalizedSearch, status, categoryId, sortBy, sortOrder, page }],
+  const { data, isLoading, isError, error, isFetching, refetch } = useQuery({
+    queryKey: [
+      'auctions',
+      { search: normalizedSearch, status, categoryId, sortBy, sortOrder, page },
+    ],
     queryFn: () =>
       auctionService.getAuctions({
         search: normalizedSearch || undefined,
@@ -121,7 +106,9 @@ export default function AuctionListPage() {
   const currentSortLabel =
     SORT_OPTIONS.find((option) => `${option.sortBy}-${option.sortOrder}` === sortValue)?.label ??
     'Mới nhất';
-  const hasActiveFilters = Boolean(search || status || categoryId || sortValue !== DEFAULT_SORT_VALUE);
+  const hasActiveFilters = Boolean(
+    search || status || categoryId || sortValue !== DEFAULT_SORT_VALUE,
+  );
   const auctions = data?.data ?? [];
   const totalPages = data?.totalPages ?? 0;
   const pageStart = data?.total ? (page - 1) * (data.limit ?? 0) + 1 : 0;
@@ -137,32 +124,32 @@ export default function AuctionListPage() {
 
   return (
     <div className="space-y-6">
-      <section className="relative overflow-hidden rounded-[28px] border border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(59,130,246,0.18),_transparent_35%),linear-gradient(135deg,#eff6ff_0%,#ffffff_48%,#ecfeff_100%)] p-6 sm:p-8">
-        <div className="absolute inset-y-0 right-0 hidden w-1/3 bg-[radial-gradient(circle_at_center,_rgba(14,165,233,0.14),_transparent_55%)] lg:block" />
+      <section className="relative overflow-hidden rounded-[28px] border border-[#E8C2C9] bg-[radial-gradient(circle_at_top_left,_rgba(122,31,43,0.12),_transparent_40%),linear-gradient(135deg,#fff6f7_0%,#ffffff_45%,#fff0f2_100%)] p-6 sm:p-8">
+        <div className="absolute inset-y-0 right-0 hidden w-1/3 bg-[radial-gradient(circle_at_center,_rgba(122,31,43,0.15),_transparent_55%)] lg:block" />
         <div className="relative grid gap-6 lg:grid-cols-[minmax(0,1fr),20rem] lg:items-end">
           <div className="space-y-4">
-            <div className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-sky-700">
+            <div className="inline-flex items-center gap-2 rounded-full border border-[#E7B8C1] bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-[#7A1F2B]">
               <Sparkles className="h-3.5 w-3.5" />
-              Auction Listing & Product Discovery
+              Luxury Discovery
             </div>
             <div className="space-y-2">
               <h1 className="max-w-2xl text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
-                Khám phá sản phẩm đang mở phiên đấu giá trên toàn hệ thống.
+                Khám phá toàn bộ phiên đấu giá theo đúng nhu cầu của bạn.
               </h1>
               <p className="max-w-2xl text-sm leading-6 text-slate-600 sm:text-base">
-                Lọc nhanh theo trạng thái, danh mục và mức giá để tìm đúng phiên phù hợp. Màn
-                hình này tập trung vào trải nghiệm xem danh sách rõ ràng, dễ quét và dễ khám phá.
+                Lọc theo danh mục, trạng thái và mức giá để tìm đúng phiên Đồ cổ, Phỉ thúy, Túi
+                limited hoặc Đồ sưu tầm đang quan tâm.
               </p>
             </div>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
-            <SummaryCard label="Tổng phiên" value={data?.total ?? 0} tone="blue" />
-            <SummaryCard label="Danh mục" value={categories.length} tone="cyan" />
+            <SummaryCard label="Tổng phiên" value={data?.total ?? 0} tone="brand" />
+            <SummaryCard label="Danh mục" value={categories.length} tone="pink" />
             <SummaryCard
               label="Bộ lọc hiện tại"
               value={normalizedSearch || currentCategory?.name || activeStatusLabel}
-              tone="slate"
+              tone="neutral"
               isText
             />
           </div>
@@ -182,7 +169,7 @@ export default function AuctionListPage() {
                   setSearch(event.target.value);
                   setPage(1);
                 }}
-                className="w-full rounded-xl border border-slate-300 bg-slate-50/60 py-3 pl-10 pr-16 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                className="w-full rounded-xl border border-slate-300 bg-slate-50/60 py-3 pl-10 pr-16 text-sm text-slate-900 outline-none transition focus:border-[#A63E53] focus:bg-white focus:ring-4 focus:ring-[#F6D9DF]"
               />
               {search && (
                 <button
@@ -205,7 +192,7 @@ export default function AuctionListPage() {
                   setCategoryId(event.target.value);
                   setPage(1);
                 }}
-                className="rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm text-slate-700 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
+                className="rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm text-slate-700 outline-none transition focus:border-[#A63E53] focus:ring-4 focus:ring-[#F6D9DF]"
               >
                 <option value="">Tất cả danh mục</option>
                 {categories.map((category) => (
@@ -221,7 +208,7 @@ export default function AuctionListPage() {
                   setSortValue(event.target.value);
                   setPage(1);
                 }}
-                className="rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm text-slate-700 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
+                className="rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm text-slate-700 outline-none transition focus:border-[#A63E53] focus:ring-4 focus:ring-[#F6D9DF]"
               >
                 {SORT_OPTIONS.map((option) => (
                   <option
@@ -251,7 +238,7 @@ export default function AuctionListPage() {
                   }}
                   className={`rounded-full px-4 py-2 text-sm font-medium transition ${
                     status === filter.value
-                      ? 'bg-slate-900 text-white shadow-sm'
+                      ? 'bg-[#7A1F2B] text-white shadow-sm'
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
@@ -269,7 +256,7 @@ export default function AuctionListPage() {
                 <button
                   type="button"
                   onClick={resetFilters}
-                  className="inline-flex items-center gap-2 rounded-full border border-rose-200 bg-rose-50 px-3 py-2 font-medium text-rose-600 transition hover:bg-rose-100"
+                  className="inline-flex items-center gap-2 rounded-full border border-[#E7B8C1] bg-[#FFF1F3] px-3 py-2 font-medium text-[#8F2A3E] transition hover:bg-[#FDE7EB]"
                 >
                   <RotateCcw className="h-4 w-4" />
                   Xoá bộ lọc
@@ -321,7 +308,9 @@ export default function AuctionListPage() {
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-slate-100">
             <Search className="h-6 w-6 text-slate-400" />
           </div>
-          <h2 className="mt-4 text-xl font-semibold text-slate-900">Không tìm thấy phiên phù hợp</h2>
+          <h2 className="mt-4 text-xl font-semibold text-slate-900">
+            Không tìm thấy phiên phù hợp
+          </h2>
           <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">
             Thử đổi từ khoá tìm kiếm, chuyển trạng thái hoặc chọn lại danh mục để mở rộng kết quả.
           </p>
@@ -361,7 +350,7 @@ export default function AuctionListPage() {
                   type="button"
                   onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
                   disabled={page === totalPages}
-                  className="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="rounded-full bg-[#7A1F2B] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#611521] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Sau
                 </button>
@@ -382,19 +371,21 @@ function SummaryCard({
 }: {
   label: string;
   value: number | string;
-  tone: 'blue' | 'cyan' | 'slate';
+  tone: 'brand' | 'pink' | 'neutral';
   isText?: boolean;
 }) {
   const toneClasses = {
-    blue: 'border-blue-200 bg-blue-50 text-blue-700',
-    cyan: 'border-cyan-200 bg-cyan-50 text-cyan-700',
-    slate: 'border-slate-200 bg-white text-slate-700',
+    brand: 'border-[#E7B8C1] bg-[#FFF1F3] text-[#7A1F2B]',
+    pink: 'border-[#F1D3D9] bg-[#FFF7F8] text-[#8F2A3E]',
+    neutral: 'border-slate-200 bg-white text-slate-700',
   };
 
   return (
     <div className={`rounded-2xl border px-4 py-4 shadow-sm ${toneClasses[tone]}`}>
       <p className="text-xs font-semibold uppercase tracking-[0.18em] opacity-75">{label}</p>
-      <p className={`mt-2 font-bold text-slate-900 ${isText ? 'text-base' : 'text-2xl'}`}>{value}</p>
+      <p className={`mt-2 font-bold text-slate-900 ${isText ? 'text-base' : 'text-2xl'}`}>
+        {value}
+      </p>
     </div>
   );
 }

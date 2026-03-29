@@ -1,11 +1,16 @@
-import { Response, NextFunction } from 'express';
-import * as bidService from './bid.service';
+import { type NextFunction, type Response } from 'express';
 import type { AuthenticatedRequest } from '../../middlewares/auth.middleware';
+import * as bidService from './bid.service';
 
 export async function placeBid(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   try {
-    const { auctionId, amount } = req.body;
-    const data = await bidService.placeBid(req.user!.id, auctionId, amount);
+    if (!req.user) {
+      res.status(401).json({ success: false, message: 'Unauthorized' });
+      return;
+    }
+
+    const { auctionId, amount, clientRequestId } = req.body;
+    const data = await bidService.placeBid(req.user.id, auctionId, amount, clientRequestId);
     res.status(201).json({ success: true, data, message: 'Đặt giá thành công' });
   } catch (error) {
     next(error);

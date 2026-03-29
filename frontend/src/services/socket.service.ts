@@ -10,6 +10,18 @@ function getLatestAccessToken() {
   return useAuthStore.getState().tokens?.accessToken;
 }
 
+function resolveSocketTransports(): Array<'websocket' | 'polling'> {
+  const raw = import.meta.env.VITE_SOCKET_TRANSPORTS || 'websocket';
+  const items = raw
+    .split(',')
+    .map((item: string) => item.trim().toLowerCase())
+    .filter(
+      (item: string): item is 'websocket' | 'polling' => item === 'websocket' || item === 'polling',
+    );
+
+  return items.length > 0 ? items : ['websocket'];
+}
+
 function setSocketAuthToken(target: AppSocket, token: string | undefined) {
   target.auth = token ? { token } : {};
 }
@@ -19,7 +31,7 @@ export function getSocket(): AppSocket {
     const token = getLatestAccessToken();
     socket = io(import.meta.env.VITE_SOCKET_URL || 'http://localhost:3001', {
       auth: token ? { token } : {},
-      transports: ['websocket', 'polling'],
+      transports: resolveSocketTransports(),
       autoConnect: false,
     });
   }

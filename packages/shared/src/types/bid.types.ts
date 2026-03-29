@@ -11,4 +11,5 @@ export interface Bid {
 export interface PlaceBidDTO {
   auctionId: string;
   amount: number;
+  clientRequestId?: string;
 }

@@ -1,0 +1,67 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-auction_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-auction_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-auction_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-auction_user}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-auction_user}:${POSTGRES_PASSWORD:-auction_pass}@postgres:5432/${POSTGRES_DB:-auction_db}
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      NODE_ENV: production
+      BACKEND_PORT: 3001
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+      CLUSTER_WORKERS: ${CLUSTER_WORKERS:-2}
+      SOCKET_TRANSPORTS: ${SOCKET_TRANSPORTS:-websocket}
+      SOCKET_PER_MESSAGE_DEFLATE: ${SOCKET_PER_MESSAGE_DEFLATE:-false}
+      SOCKET_REDIS_ADAPTER_ENABLED: ${SOCKET_REDIS_ADAPTER_ENABLED:-true}
+      DB_QUERY_LOG_ENABLED: ${DB_QUERY_LOG_ENABLED:-false}
+    ports:
+      - '3001:3001'
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - '80:80'
+
+volumes:
+  postgres_data:
+  redis_data:

@@ -1,5 +1,5 @@
 import api from './api.service';
-import type { AuctionStatus } from '@auction/shared';
+import type { AuctionStatus, UpdateProfileDTO, UserProfile } from '@auction/shared';
 
 interface MyBidAuction {
   id: string;
@@ -62,6 +62,16 @@ export interface AdminUsersResponse {
 }
 
 export const userService = {
+  getMe: async () => {
+    const res = await api.get<{ data: UserProfile }>('/users/me');
+    return res.data.data;
+  },
+
+  updateMe: async (payload: UpdateProfileDTO) => {
+    const res = await api.put<{ data: UserProfile }>('/users/me', payload);
+    return res.data.data;
+  },
+
   getMyBids: async (params: { page?: number; limit?: number } = {}) => {
     const res = await api.get<MyBidsResponse>('/users/me/bids', { params });
     return res.data;

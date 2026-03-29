@@ -5,17 +5,25 @@
 @layer base {
   :root {
     --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --primary: 221.2 83.2% 53.3%;
+    --foreground: 352 28% 14%;
+    --primary: 352 60% 30%;
     --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --border: 214.3 31.8% 91.4%;
-    --ring: 221.2 83.2% 53.3%;
+    --secondary: 350 40% 96%;
+    --secondary-foreground: 352 26% 16%;
+    --muted: 350 28% 95%;
+    --muted-foreground: 352 14% 38%;
+    --accent: 350 40% 96%;
+    --border: 350 28% 88%;
+    --ring: 352 60% 42%;
     --radius: 0.5rem;
+    --brand-50: #fff3f4;
+    --brand-100: #f9dfe3;
+    --brand-200: #efb9c1;
+    --brand-400: #cb5c72;
+    --brand-500: #a63e53;
+    --brand-600: #8f2a3e;
+    --brand-700: #7a1f2b;
+    --brand-800: #611521;
   }
 }
 
@@ -25,5 +33,190 @@
   }
   body {
     @apply bg-background text-foreground;
+    background-image: linear-gradient(180deg, #fff9fa 0%, #ffffff 25%);
   }
+}
+
+.text-blue-500,
+.text-blue-600,
+.text-blue-700,
+.text-blue-800,
+.text-indigo-600,
+.text-indigo-700,
+.text-purple-600,
+.text-purple-700 {
+  color: var(--brand-700) !important;
+}
+
+.bg-blue-50 {
+  background-color: var(--brand-50) !important;
+}
+
+.bg-indigo-50,
+.bg-purple-50 {
+  background-color: var(--brand-50) !important;
+}
+
+.bg-blue-100 {
+  background-color: var(--brand-100) !important;
+}
+
+.bg-indigo-100,
+.bg-purple-100 {
+  background-color: var(--brand-100) !important;
+}
+
+.bg-blue-600 {
+  background-color: var(--brand-700) !important;
+}
+
+.bg-blue-700 {
+  background-color: var(--brand-800) !important;
+}
+
+.bg-blue-300 {
+  background-color: var(--brand-400) !important;
+}
+
+.border-blue-200 {
+  border-color: var(--brand-200) !important;
+}
+
+.border-indigo-200,
+.border-purple-200 {
+  border-color: var(--brand-200) !important;
+}
+
+.border-blue-300 {
+  border-color: var(--brand-400) !important;
+}
+
+.border-blue-400,
+.focus\:border-blue-400:focus,
+.focus\:border-blue-500:focus {
+  border-color: var(--brand-500) !important;
+}
+
+.focus\:ring-blue-100:focus {
+  --tw-ring-color: rgba(203, 92, 114, 0.22) !important;
+}
+
+.focus\:ring-blue-500:focus {
+  --tw-ring-color: var(--brand-500) !important;
+}
+
+.hover\:bg-blue-700:hover {
+  background-color: var(--brand-800) !important;
+}
+
+.hover\:bg-blue-100:hover {
+  background-color: var(--brand-100) !important;
+}
+
+.hover\:border-blue-300:hover {
+  border-color: var(--brand-400) !important;
+}
+
+.hover\:text-blue-600:hover,
+.hover\:text-blue-700:hover {
+  color: var(--brand-700) !important;
+}
+
+.ring-blue-400 {
+  --tw-ring-color: var(--brand-400) !important;
+}
+
+.from-blue-50 {
+  --tw-gradient-from: var(--brand-50) var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgb(255 243 244 / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
+.to-indigo-100 {
+  --tw-gradient-to: var(--brand-100) var(--tw-gradient-to-position) !important;
+}
+
+@keyframes liveFeedEnter {
+  0% {
+    opacity: 0;
+    transform: translateY(14px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes liveFeedGlow {
+  0% {
+    box-shadow: 0 0 0 rgba(122, 31, 43, 0);
+  }
+  35% {
+    box-shadow:
+      0 0 0 2px rgba(122, 31, 43, 0.35),
+      0 0 20px rgba(203, 92, 114, 0.35);
+  }
+  100% {
+    box-shadow: 0 0 0 rgba(122, 31, 43, 0);
+  }
+}
+
+@keyframes livePricePop {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.18);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes leaderSweep {
+  0% {
+    transform: translateX(-130%);
+  }
+  100% {
+    transform: translateX(260%);
+  }
+}
+
+@keyframes outbidShake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-5px);
+  }
+  40% {
+    transform: translateX(5px);
+  }
+  60% {
+    transform: translateX(-4px);
+  }
+  80% {
+    transform: translateX(4px);
+  }
+}
+
+.live-feed-item-enter {
+  animation: liveFeedEnter 0.32s ease-out both;
+}
+
+.live-feed-item-glow {
+  animation: liveFeedGlow 1.2s ease-out both;
+}
+
+.live-price-pop {
+  animation: livePricePop 0.36s ease-out both;
+}
+
+.leader-sweep {
+  animation: leaderSweep 0.9s ease-out both;
+}
+
+.outbid-shake {
+  animation: outbidShake 0.6s ease-in-out both;
 }

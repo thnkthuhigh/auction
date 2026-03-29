@@ -1,269 +1,297 @@
-import { useState } from 'react';
-import type { ReactNode } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Activity, AlertTriangle, Clock3, Gavel, Search } from 'lucide-react';
-import LoadingSpinner from '@/components/common/LoadingSpinner';
+import { useMemo, useState } from 'react';
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Activity, AlertTriangle, Ban, Lock, PauseCircle, Search } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { auctionService } from '@/services/auction.service';
+import { userService } from '@/services/user.service';
+import LoadingSpinner from '@/components/common/LoadingSpinner';
+import { formatTimeVN } from '@/utils/dateTime';
 
-const PAGE_SIZE = 12;
-
-function formatCurrency(value: number): string {
-  return `${value.toLocaleString('vi-VN')} VND`;
-}
-
-function formatDate(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '-';
-  return date.toLocaleString('vi-VN');
-}
-
-function getSessionStatusBadge(status: string): string {
-  if (status === 'ACTIVE') return 'bg-emerald-100 text-emerald-700';
-  if (status === 'PENDING') return 'bg-amber-100 text-amber-700';
-  if (status === 'ENDED') return 'bg-slate-200 text-slate-700';
-  return 'bg-rose-100 text-rose-700';
-}
-
-function getReviewStatusBadge(status: string): string {
-  if (status === 'APPROVED') return 'bg-emerald-100 text-emerald-700';
-  if (status === 'PENDING_REVIEW') return 'bg-amber-100 text-amber-700';
-  if (status === 'REJECTED') return 'bg-rose-100 text-rose-700';
-  return 'bg-blue-100 text-blue-700';
-}
+type SuspiciousAccount = {
+  bidderId: string;
+  bidderUsername: string;
+  auctionId: string;
+  auctionTitle: string;
+  bidCountInTopLogs: number;
+};
 
 export default function AdminMonitoringPage() {
-  const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
-  const [status, setStatus] = useState<string>('');
-  const [reviewStatus, setReviewStatus] = useState<string>('');
+  const queryClient = useQueryClient();
 
-  const { data, isLoading, isFetching } = useQuery({
-    queryKey: ['admin-monitoring', page, search, status, reviewStatus],
+  const { data: monitoring, isLoading } = useQuery({
+    queryKey: ['admin-monitoring-page', search],
     queryFn: () =>
       auctionService.getAdminMonitoring({
-        page,
-        limit: PAGE_SIZE,
+        page: 1,
+        limit: 30,
         search: search.trim() || undefined,
-        status: (status || undefined) as 'PENDING' | 'ACTIVE' | 'ENDED' | 'CANCELLED' | undefined,
-        reviewStatus: (reviewStatus || undefined) as
-          | 'PENDING_REVIEW'
-          | 'APPROVED'
-          | 'REJECTED'
-          | 'CHANGES_REQUESTED'
-          | undefined,
         sortBy: 'updatedAt',
         sortOrder: 'desc',
       }),
-    placeholderData: (prev) => prev,
+    refetchInterval: 5_000,
   });
+
+  const activeAuctions = (monitoring?.data ?? []).filter((item) => item.status === 'ACTIVE');
+
+  const bidsQueries = useQueries({
+    queries: activeAuctions.map((auction) => ({
+      queryKey: ['admin-monitoring-bids', auction.id],
+      queryFn: () => auctionService.getBids(auction.id),
+      refetchInterval: 5_000,
+    })),
+  });
+
+  const suspiciousAccounts = useMemo<SuspiciousAccount[]>(() => {
+    const list: SuspiciousAccount[] = [];
+
+    activeAuctions.forEach((auction, index) => {
+      const bids = (bidsQueries[index]?.data?.data ?? []) as Array<{
+        bidderId: string;
+        bidderUsername: string;
+      }>;
+
+      if (bids.length === 0) return;
+
+      const topLogs = bids.slice(0, 10);
+      const counts = new Map<string, { username: string; count: number }>();
+
+      topLogs.forEach((bid) => {
+        const prev = counts.get(bid.bidderId);
+        counts.set(bid.bidderId, {
+          username: bid.bidderUsername,
+          count: (prev?.count ?? 0) + 1,
+        });
+      });
+
+      counts.forEach((value, bidderId) => {
+        if (value.count >= 4) {
+          list.push({
+            bidderId,
+            bidderUsername: value.username,
+            auctionId: auction.id,
+            auctionTitle: auction.title,
+            bidCountInTopLogs: value.count,
+          });
+        }
+      });
+    });
+
+    return list;
+  }, [activeAuctions, bidsQueries]);
+
+  const cancelSessionMutation = useMutation({
+    mutationFn: (auctionId: string) => auctionService.cancelAuctionSession(auctionId),
+    onSuccess: () => {
+      toast.success('Đã hủy phiên đấu giá');
+      queryClient.invalidateQueries({ queryKey: ['admin-monitoring-page'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-session-list'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-dashboard-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-reports-monitoring'] });
+    },
+    onError: (error: { response?: { data?: { message?: string } } }) => {
+      toast.error(error.response?.data?.message || 'Không thể hủy phiên');
+    },
+  });
+
+  const suspendSessionMutation = useMutation({
+    mutationFn: (auctionId: string) => auctionService.suspendAuctionSession(auctionId),
+    onSuccess: () => {
+      toast.success('Đã tạm dừng phiên đấu giá');
+      queryClient.invalidateQueries({ queryKey: ['admin-monitoring-page'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-session-list'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-dashboard-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-reports-monitoring'] });
+    },
+    onError: (error: { response?: { data?: { message?: string } } }) => {
+      toast.error(error.response?.data?.message || 'Không thể tạm dừng phiên');
+    },
+  });
+
+  const lockUserMutation = useMutation({
+    mutationFn: ({ userId, reason }: { userId: string; reason: string }) =>
+      userService.updateAdminUserStatus(userId, { isActive: false, reason }),
+    onSuccess: () => {
+      toast.success('Đã khóa tài khoản nghi ngờ gian lận');
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+    },
+    onError: (error: { response?: { data?: { message?: string } } }) => {
+      toast.error(error.response?.data?.message || 'Không thể khóa tài khoản');
+    },
+  });
+
+  const handleEmergencyCancel = (auctionId: string) => {
+    const confirmed = window.confirm('Xác nhận hủy phiên đấu giá đang diễn ra?');
+    if (!confirmed) return;
+    cancelSessionMutation.mutate(auctionId);
+  };
+
+  const handleEmergencySuspend = (auctionId: string) => {
+    const confirmed = window.confirm('Xác nhận tạm dừng phiên đấu giá đang diễn ra?');
+    if (!confirmed) return;
+    suspendSessionMutation.mutate(auctionId);
+  };
+
+  const handleLockUser = (userId: string, username: string) => {
+    const confirmed = window.confirm(`Khóa tài khoản ${username} do nghi ngờ spam bid?`);
+    if (!confirmed) return;
+    lockUserMutation.mutate({
+      userId,
+      reason: 'Nghi ngờ spam bid hoặc thao túng giá (khóa khẩn cấp bởi Admin)',
+    });
+  };
 
   if (isLoading) {
     return (
       <div className="rounded-xl border border-slate-200 bg-white p-8">
-        <LoadingSpinner size="lg" text="Dang tai dashboard giam sat..." />
+        <LoadingSpinner size="lg" text="Đang tải dữ liệu giám sát..." />
       </div>
     );
   }
 
-  const summary = data?.summary;
-  const sessions = data?.data ?? [];
-
   return (
     <div className="space-y-4">
       <section className="rounded-xl border border-slate-200 bg-white p-4">
-        <div className="flex flex-col gap-2">
-          <h1 className="text-xl font-bold text-slate-900">Giam sat he thong</h1>
-          <p className="text-sm text-slate-600">
-            AS-60: theo doi hoat dong dau gia, canh bao bat thuong, va quan ly toan bo phien.
-          </p>
+        <h1 className="text-xl font-bold text-slate-900">Giám sát hệ thống realtime</h1>
+        <p className="mt-1 text-sm text-slate-600">
+          Theo dõi feed bid trực tiếp, phát hiện spam và xử lý vi phạm khẩn cấp ngay tại chỗ.
+        </p>
+      </section>
+
+      <section className="rounded-xl border border-slate-200 bg-white p-4">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Tìm theo tên phiên để lọc giám sát..."
+            className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#CB5C72]"
+          />
         </div>
       </section>
 
-      {summary && (
-        <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
-          <StatCard
-            title="Tong phien"
-            value={summary.totalAuctions}
-            icon={<Gavel className="h-4 w-4 text-blue-600" />}
-            color="border-blue-200 bg-blue-50"
-          />
-          <StatCard
-            title="Dang dien ra"
-            value={summary.activeAuctions}
-            icon={<Activity className="h-4 w-4 text-emerald-600" />}
-            color="border-emerald-200 bg-emerald-50"
-          />
-          <StatCard
-            title="Cho duyet"
-            value={summary.pendingReviewProducts}
-            icon={<Clock3 className="h-4 w-4 text-amber-600" />}
-            color="border-amber-200 bg-amber-50"
-          />
-          <StatCard
-            title="Bid 24h"
-            value={summary.bidsLast24h}
-            icon={<Gavel className="h-4 w-4 text-indigo-600" />}
-            color="border-indigo-200 bg-indigo-50"
-          />
-          <StatCard
-            title="Canh bao"
-            value={summary.staleActiveAuctions}
-            icon={<AlertTriangle className="h-4 w-4 text-rose-600" />}
-            color="border-rose-200 bg-rose-50"
-          />
-        </section>
-      )}
-
-      <section className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr,12rem,14rem] gap-3">
-          <div className="relative">
-            <Search className="h-4 w-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              value={search}
-              onChange={(e) => {
-                setPage(1);
-                setSearch(e.target.value);
-              }}
-              placeholder="Tim theo ten phien, mo ta, seller..."
-              className="w-full rounded-lg border border-slate-300 pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+      <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1.6fr,1fr]">
+        <article className="rounded-xl border border-slate-200 bg-white p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <Activity className="h-4 w-4 text-[#7A1F2B]" />
+            <h2 className="font-semibold text-slate-900">Radar phiên active</h2>
           </div>
 
-          <select
-            value={status}
-            onChange={(e) => {
-              setPage(1);
-              setStatus(e.target.value);
-            }}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">Tat ca status</option>
-            <option value="PENDING">PENDING</option>
-            <option value="ACTIVE">ACTIVE</option>
-            <option value="ENDED">ENDED</option>
-            <option value="CANCELLED">CANCELLED</option>
-          </select>
+          {activeAuctions.length === 0 ? (
+            <p className="text-sm text-slate-500">Hiện chưa có phiên đang hoạt động.</p>
+          ) : (
+            <div className="space-y-3">
+              {activeAuctions.map((auction, index) => {
+                const bidLogs = (bidsQueries[index]?.data?.data ?? []) as Array<{
+                  id: string;
+                  amount: number;
+                  bidderUsername: string;
+                  createdAt: string;
+                }>;
 
-          <select
-            value={reviewStatus}
-            onChange={(e) => {
-              setPage(1);
-              setReviewStatus(e.target.value);
-            }}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">Tat ca review</option>
-            <option value="PENDING_REVIEW">PENDING_REVIEW</option>
-            <option value="APPROVED">APPROVED</option>
-            <option value="REJECTED">REJECTED</option>
-            <option value="CHANGES_REQUESTED">CHANGES_REQUESTED</option>
-          </select>
-        </div>
+                return (
+                  <div key={auction.id} className="rounded-lg border border-slate-200 p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <p className="font-semibold text-slate-900">{auction.title}</p>
+                        <p className="text-xs text-slate-500">
+                          Giá hiện tại: {auction.currentPrice.toLocaleString('vi-VN')} VNĐ | Tổng
+                          bid: {auction.totalBids}
+                        </p>
+                      </div>
 
-        {isFetching && <p className="text-xs text-slate-500">Dang lam moi du lieu...</p>}
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleEmergencySuspend(auction.id)}
+                          disabled={
+                            suspendSessionMutation.isPending || cancelSessionMutation.isPending
+                          }
+                          className="inline-flex items-center gap-1 rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-600 disabled:opacity-50"
+                        >
+                          <PauseCircle className="h-3.5 w-3.5" />
+                          Tạm dừng
+                        </button>
 
-        {sessions.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-slate-300 p-6 text-center">
-            <p className="text-sm font-medium text-slate-700">Khong co du lieu phu hop bo loc.</p>
+                        <button
+                          type="button"
+                          onClick={() => handleEmergencyCancel(auction.id)}
+                          disabled={
+                            cancelSessionMutation.isPending || suspendSessionMutation.isPending
+                          }
+                          className="inline-flex items-center gap-1 rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-50"
+                        >
+                          <Ban className="h-3.5 w-3.5" />
+                          Hủy phiên
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-2">
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Feed bid realtime
+                      </p>
+                      <div className="max-h-44 space-y-1 overflow-auto text-xs">
+                        {bidLogs.length === 0 ? (
+                          <p className="text-slate-400">Chưa có log bid.</p>
+                        ) : (
+                          bidLogs.slice(0, 10).map((log) => (
+                            <div
+                              key={log.id}
+                              className="flex items-center justify-between rounded bg-white px-2 py-1"
+                            >
+                              <span className="text-slate-700">{log.bidderUsername}</span>
+                              <span className="font-semibold text-[#7A1F2B]">
+                                {log.amount.toLocaleString('vi-VN')} VNĐ
+                              </span>
+                              <span className="text-slate-500">{formatTimeVN(log.createdAt)}</span>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </article>
+
+        <article className="rounded-xl border border-slate-200 bg-white p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-rose-600" />
+            <h2 className="font-semibold text-slate-900">Cảnh báo đỏ</h2>
           </div>
-        ) : (
-          <div className="overflow-x-auto rounded-lg border border-slate-200">
-            <table className="min-w-full text-sm">
-              <thead className="bg-slate-50 text-slate-600">
-                <tr>
-                  <th className="text-left px-3 py-2 font-semibold">Phien</th>
-                  <th className="text-left px-3 py-2 font-semibold">Seller</th>
-                  <th className="text-left px-3 py-2 font-semibold">Status</th>
-                  <th className="text-left px-3 py-2 font-semibold">Review</th>
-                  <th className="text-right px-3 py-2 font-semibold">Gia hien tai</th>
-                  <th className="text-right px-3 py-2 font-semibold">So bid</th>
-                  <th className="text-left px-3 py-2 font-semibold">Bat dau</th>
-                  <th className="text-left px-3 py-2 font-semibold">Ket thuc</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sessions.map((item) => (
-                  <tr key={item.id} className="border-t border-slate-100">
-                    <td className="px-3 py-2">
-                      <p className="font-medium text-slate-900 line-clamp-1">{item.title}</p>
-                      <p className="text-xs text-slate-500 line-clamp-1">{item.category?.name ?? '-'}</p>
-                    </td>
-                    <td className="px-3 py-2 text-slate-700">{item.seller?.username ?? item.sellerId}</td>
-                    <td className="px-3 py-2">
-                      <span
-                        className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${getSessionStatusBadge(
-                          item.status,
-                        )}`}
-                      >
-                        {item.status}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2">
-                      <span
-                        className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${getReviewStatusBadge(
-                          item.reviewStatus,
-                        )}`}
-                      >
-                        {item.reviewStatus}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2 text-right font-medium text-slate-800">
-                      {formatCurrency(item.currentPrice)}
-                    </td>
-                    <td className="px-3 py-2 text-right text-slate-700">{item.totalBids}</td>
-                    <td className="px-3 py-2 text-slate-700">{formatDate(item.startTime)}</td>
-                    <td className="px-3 py-2 text-slate-700">{formatDate(item.endTime)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+
+          {suspiciousAccounts.length === 0 ? (
+            <p className="text-sm text-slate-500">Chưa phát hiện hành vi spam bid rõ rệt.</p>
+          ) : (
+            <div className="space-y-2">
+              {suspiciousAccounts.map((account) => (
+                <div
+                  key={`${account.auctionId}-${account.bidderId}`}
+                  className="rounded-lg border border-rose-200 bg-rose-50 p-3"
+                >
+                  <p className="text-sm font-semibold text-slate-900">{account.bidderUsername}</p>
+                  <p className="mt-1 text-xs text-slate-600">
+                    Phiên: {account.auctionTitle} | {account.bidCountInTopLogs} lượt bid trong top
+                    log
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => handleLockUser(account.bidderId, account.bidderUsername)}
+                    disabled={lockUserMutation.isPending}
+                    className="mt-2 inline-flex items-center gap-1 rounded-lg bg-[#7A1F2B] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#611521] disabled:opacity-50"
+                  >
+                    <Lock className="h-3.5 w-3.5" />
+                    Khóa tài khoản ngay
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </article>
       </section>
-
-      {data && data.totalPages > 1 && (
-        <div className="flex items-center justify-center gap-2 pt-1">
-          <button
-            onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-            disabled={page === 1}
-            className="px-3 py-2 text-sm rounded-lg border border-slate-300 disabled:opacity-50 hover:bg-slate-50"
-          >
-            Truoc
-          </button>
-          <span className="text-sm text-slate-600">
-            Trang {page}/{data.totalPages}
-          </span>
-          <button
-            onClick={() => setPage((prev) => Math.min(data.totalPages, prev + 1))}
-            disabled={page === data.totalPages}
-            className="px-3 py-2 text-sm rounded-lg border border-slate-300 disabled:opacity-50 hover:bg-slate-50"
-          >
-            Sau
-          </button>
-        </div>
-      )}
     </div>
-  );
-}
-
-function StatCard({
-  title,
-  value,
-  icon,
-  color,
-}: {
-  title: string;
-  value: number;
-  icon: ReactNode;
-  color: string;
-}) {
-  return (
-    <article className={`rounded-xl border p-3 ${color}`}>
-      <div className="flex items-start justify-between gap-2">
-        <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">{title}</p>
-        {icon}
-      </div>
-      <p className="mt-2 text-2xl font-bold text-slate-900">{value.toLocaleString('vi-VN')}</p>
-    </article>
   );
 }

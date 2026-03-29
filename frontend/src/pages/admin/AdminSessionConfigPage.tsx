@@ -1,205 +1,171 @@
-import { useEffect, useMemo, useState } from 'react';
-import type { ReactNode } from 'react';
+import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CalendarClock, Search, Save, User, FolderOpen, Ban } from 'lucide-react';
+import { Ban, CalendarClock, PlusCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
-import LoadingSpinner from '@/components/common/LoadingSpinner';
 import type { CreateAuctionSessionPayload } from '@/services/auction.service';
 import { auctionService } from '@/services/auction.service';
-
-const PAGE_SIZE = 12;
-
-type SessionStatus = 'PENDING' | 'ACTIVE' | 'ENDED' | 'CANCELLED';
-type ReviewStatus = 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED' | 'CHANGES_REQUESTED';
-
-type SessionCandidate = {
-  id: string;
-  title: string;
-  description: string;
-  imageUrl?: string | null;
-  startPrice: number;
-  minBidStep: number;
-  status: SessionStatus;
-  reviewStatus?: ReviewStatus;
-  startTime: string;
-  endTime: string;
-  seller?: {
-    username?: string;
-  };
-  category?: {
-    name?: string;
-  };
-  totalBids?: number;
-};
+import LoadingSpinner from '@/components/common/LoadingSpinner';
+import { formatDateTimeVN } from '@/utils/dateTime';
 
 type SessionForm = {
+  auctionId: string;
   startTime: string;
   endTime: string;
   startPrice: string;
   minBidStep: string;
 };
 
-function toLocalInputValue(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
-  return local.toISOString().slice(0, 16);
-}
+type SessionFilter = 'ALL' | 'PENDING' | 'ACTIVE' | 'SUSPENDED' | 'ENDED' | 'CANCELLED';
 
-function formatCurrency(value: number): string {
-  return `${value.toLocaleString('vi-VN')} ₫`;
-}
-
-function formatDate(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '-';
-  return date.toLocaleString('vi-VN');
-}
-
-function getStatusBadgeClass(status: SessionStatus): string {
-  if (status === 'PENDING') return 'bg-amber-100 text-amber-800';
-  if (status === 'ACTIVE') return 'bg-emerald-100 text-emerald-800';
+function statusClass(status: string) {
+  if (status === 'PENDING') return 'bg-amber-100 text-amber-700';
+  if (status === 'ACTIVE') return 'bg-emerald-100 text-emerald-700';
+  if (status === 'SUSPENDED') return 'bg-orange-100 text-orange-700';
   if (status === 'ENDED') return 'bg-slate-200 text-slate-700';
-  return 'bg-rose-100 text-rose-800';
+  if (status === 'CANCELLED') return 'bg-rose-100 text-rose-700';
+  return 'bg-slate-100 text-slate-600';
+}
+
+function statusLabel(status: string) {
+  if (status === 'PENDING') return 'Scheduled';
+  if (status === 'ACTIVE') return 'Active';
+  if (status === 'SUSPENDED') return 'Suspended';
+  if (status === 'ENDED') return 'Ended';
+  if (status === 'CANCELLED') return 'Canceled';
+  return status;
 }
 
 export default function AdminSessionConfigPage() {
-  const [page, setPage] = useState(1);
-  const [search, setSearch] = useState('');
-  const [forms, setForms] = useState<Record<string, SessionForm>>({});
+  const [form, setForm] = useState<SessionForm>({
+    auctionId: '',
+    startTime: '',
+    endTime: '',
+    startPrice: '',
+    minBidStep: '',
+  });
+  const [showCreatePanel, setShowCreatePanel] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<SessionFilter>('ALL');
   const queryClient = useQueryClient();
 
-  const { data, isLoading, isFetching } = useQuery({
-    queryKey: ['admin-session-candidates', page],
+  const { data: approvedProductsData, isLoading: loadingApproved } = useQuery({
+    queryKey: ['admin-approved-products-for-session'],
     queryFn: () =>
-      auctionService.getAuctions({
-        page,
-        limit: PAGE_SIZE,
+      auctionService.getAdminMonitoring({
+        page: 1,
+        limit: 100,
+        status: 'PENDING',
+        reviewStatus: 'APPROVED',
         sortBy: 'createdAt',
         sortOrder: 'desc',
       }),
-    placeholderData: (prev) => prev,
   });
 
-  const candidates = useMemo(() => {
-    const rawItems = (data?.data ?? []) as unknown as SessionCandidate[];
-    const approved = rawItems.filter((item) => item.reviewStatus === 'APPROVED');
-    const keyword = search.trim().toLowerCase();
-    if (!keyword) return approved;
-    return approved.filter((item) => {
-      const title = item.title.toLowerCase();
-      const seller = item.seller?.username?.toLowerCase() ?? '';
-      return title.includes(keyword) || seller.includes(keyword);
-    });
-  }, [data?.data, search]);
+  const { data: sessionListData, isLoading: loadingSessions } = useQuery({
+    queryKey: ['admin-session-list'],
+    queryFn: () =>
+      auctionService.getAdminMonitoring({
+        page: 1,
+        limit: 200,
+        sortBy: 'startTime',
+        sortOrder: 'asc',
+      }),
+    refetchInterval: 10_000,
+  });
 
-  useEffect(() => {
-    setForms((prev) => {
-      const next = { ...prev };
-      for (const item of candidates) {
-        if (!next[item.id]) {
-          next[item.id] = {
-            startTime: toLocalInputValue(item.startTime),
-            endTime: toLocalInputValue(item.endTime),
-            startPrice: String(item.startPrice),
-            minBidStep: String(item.minBidStep),
-          };
-        }
-      }
-      return next;
-    });
-  }, [candidates]);
+  const approvedProducts = approvedProductsData?.data ?? [];
+  const sessions = (sessionListData?.data ?? []).filter((item) =>
+    ['PENDING', 'ACTIVE', 'SUSPENDED', 'ENDED', 'CANCELLED'].includes(item.status),
+  );
 
-  const configMutation = useMutation({
-    mutationFn: (params: { auctionId: string; payload: CreateAuctionSessionPayload }) =>
-      auctionService.updateAuctionSessionConfig(params.auctionId, params.payload),
+  const filteredSessions = useMemo(() => {
+    if (statusFilter === 'ALL') return sessions;
+    return sessions.filter((item) => item.status === statusFilter);
+  }, [sessions, statusFilter]);
+
+  const createSessionMutation = useMutation({
+    mutationFn: (payload: { auctionId: string; data: CreateAuctionSessionPayload }) =>
+      auctionService.createAuctionSession(payload.auctionId, payload.data),
     onSuccess: () => {
-      toast.success('Da cap nhat cau hinh phien thanh cong');
-      queryClient.invalidateQueries({ queryKey: ['admin-session-candidates'] });
+      toast.success('Tạo phiên đấu giá thành công');
+      setForm({
+        auctionId: '',
+        startTime: '',
+        endTime: '',
+        startPrice: '',
+        minBidStep: '',
+      });
+      setShowCreatePanel(false);
+      queryClient.invalidateQueries({ queryKey: ['admin-approved-products-for-session'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-session-list'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-dashboard-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-monitoring-page'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-reports-monitoring'] });
     },
     onError: (error: { response?: { data?: { message?: string } } }) => {
-      const message = error.response?.data?.message;
-      toast.error(message || 'Khong the cap nhat cau hinh phien');
+      toast.error(error.response?.data?.message || 'Không thể tạo phiên đấu giá');
     },
   });
 
-  const cancelMutation = useMutation({
+  const cancelSessionMutation = useMutation({
     mutationFn: (auctionId: string) => auctionService.cancelAuctionSession(auctionId),
     onSuccess: () => {
-      toast.success('Da huy phien dau gia');
-      queryClient.invalidateQueries({ queryKey: ['admin-session-candidates'] });
+      toast.success('Đã hủy phiên đấu giá');
+      queryClient.invalidateQueries({ queryKey: ['admin-session-list'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-dashboard-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-monitoring-page'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-reports-monitoring'] });
     },
     onError: (error: { response?: { data?: { message?: string } } }) => {
-      const message = error.response?.data?.message;
-      toast.error(message || 'Khong the huy phien dau gia');
+      toast.error(error.response?.data?.message || 'Không thể hủy phiên');
     },
   });
 
-  const handleFieldChange = (auctionId: string, key: keyof SessionForm, value: string): void => {
-    setForms((prev) => ({
-      ...prev,
-      [auctionId]: {
-        ...prev[auctionId],
-        [key]: value,
-      },
-    }));
-  };
+  const selectedProduct = approvedProducts.find((item) => item.id === form.auctionId);
 
-  const handleSaveConfig = (item: SessionCandidate): void => {
-    if (item.status !== 'PENDING') {
-      toast.error('Chi cho phep cau hinh phien dang o trang thai PENDING');
+  const handleCreateSession = () => {
+    if (!form.auctionId) {
+      toast.error('Vui lòng chọn sản phẩm đã duyệt');
       return;
     }
-
-    const form = forms[item.id];
-    if (!form) {
-      toast.error('Thieu du lieu cau hinh phien');
-      return;
-    }
-
-    const startPrice = Number(form.startPrice);
-    const minBidStep = Number(form.minBidStep);
-
     if (!form.startTime || !form.endTime) {
-      toast.error('Vui long chon day du thoi gian bat dau/ket thuc');
+      toast.error('Vui lòng nhập thời gian bắt đầu và kết thúc');
       return;
     }
+
+    const startPrice = Number(form.startPrice || selectedProduct?.startPrice || 0);
+    const minBidStep = Number(form.minBidStep || selectedProduct?.minBidStep || 0);
 
     if (!Number.isFinite(startPrice) || startPrice < 1000) {
-      toast.error('Gia khoi diem phai tu 1,000 tro len');
+      toast.error('Giá khởi điểm phải từ 1.000 VNĐ');
       return;
     }
-
     if (!Number.isFinite(minBidStep) || minBidStep < 1000) {
-      toast.error('Buoc gia phai tu 1,000 tro len');
+      toast.error('Bước giá phải từ 1.000 VNĐ');
       return;
     }
 
-    const payload: CreateAuctionSessionPayload = {
-      startTime: new Date(form.startTime).toISOString(),
-      endTime: new Date(form.endTime).toISOString(),
-      startPrice,
-      minBidStep,
-    };
-
-    configMutation.mutate({ auctionId: item.id, payload });
+    createSessionMutation.mutate({
+      auctionId: form.auctionId,
+      data: {
+        startTime: new Date(form.startTime).toISOString(),
+        endTime: new Date(form.endTime).toISOString(),
+        startPrice,
+        minBidStep,
+      },
+    });
   };
 
-  const handleCancelSession = (item: SessionCandidate): void => {
-    if (item.status === 'ENDED' || item.status === 'CANCELLED') {
-      toast.error('Phien nay da dong, khong the huy');
-      return;
-    }
-
-    const confirmed = window.confirm('Ban co chac chan muon huy phien dau gia nay?');
+  const handleEmergencyCancel = (auctionId: string) => {
+    const confirmed = window.confirm('Xác nhận hủy phiên đấu giá này?');
     if (!confirmed) return;
-    cancelMutation.mutate(item.id);
+    cancelSessionMutation.mutate(auctionId);
   };
 
-  if (isLoading) {
+  if (loadingApproved || loadingSessions) {
     return (
       <div className="rounded-xl border border-slate-200 bg-white p-8">
-        <LoadingSpinner size="lg" text="Dang tai danh sach san pham da duyet..." />
+        <LoadingSpinner size="lg" text="Đang tải dữ liệu quản lý phiên..." />
       </div>
     );
   }
@@ -207,203 +173,196 @@ export default function AdminSessionConfigPage() {
   return (
     <div className="space-y-4">
       <section className="rounded-xl border border-slate-200 bg-white p-4">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-xl font-bold text-slate-900">Thiet lap cau hinh phien</h1>
-            <p className="text-sm text-slate-600 mt-1">
-              AS-50: cap nhat cau hinh phien va huy phien neu can.
+            <h1 className="text-xl font-bold text-slate-900">Quản lý Phiên đấu giá</h1>
+            <p className="mt-1 text-sm text-slate-600">
+              Quản lý toàn vòng đời phiên: Scheduled, Active, Ended, Canceled.
             </p>
           </div>
-
-          <div className="relative w-full md:w-80">
-            <Search className="h-4 w-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Tim theo ten san pham / seller..."
-              className="w-full rounded-lg border border-slate-300 pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
+          <button
+            type="button"
+            onClick={() => setShowCreatePanel((prev) => !prev)}
+            className="inline-flex items-center gap-2 rounded-lg bg-[#7A1F2B] px-4 py-2 text-sm font-semibold text-white hover:bg-[#611521]"
+          >
+            <PlusCircle className="h-4 w-4" />+ Tạo phiên mới
+          </button>
         </div>
       </section>
 
-      {isFetching && <p className="text-xs text-slate-500 px-1">Dang lam moi du lieu...</p>}
+      {showCreatePanel && (
+        <section className="rounded-xl border border-slate-200 bg-white p-4">
+          <h2 className="mb-3 font-semibold text-slate-900">Thiết lập phiên mới</h2>
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+            <label className="space-y-1">
+              <span className="text-sm font-medium text-slate-700">Sản phẩm đã duyệt</span>
+              <select
+                value={form.auctionId}
+                onChange={(e) => {
+                  const auctionId = e.target.value;
+                  const product = approvedProducts.find((item) => item.id === auctionId);
+                  setForm((prev) => ({
+                    ...prev,
+                    auctionId,
+                    startPrice: product ? String(product.startPrice) : '',
+                    minBidStep: product ? String(product.minBidStep) : '',
+                  }));
+                }}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#CB5C72]"
+              >
+                <option value="">-- Chọn sản phẩm --</option>
+                {approvedProducts.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.title} - {item.seller?.username ?? item.sellerId}
+                  </option>
+                ))}
+              </select>
+            </label>
 
-      {candidates.length === 0 ? (
-        <section className="rounded-xl border border-slate-200 bg-white p-8 text-center">
-          <p className="text-slate-700 font-medium">Khong co san pham APPROVED de cau hinh phien</p>
-          <p className="text-sm text-slate-500 mt-1">
-            Hay duyet san pham o man AS-46/AS-47 truoc khi cau hinh phien.
-          </p>
-        </section>
-      ) : (
-        <section className="space-y-3">
-          {candidates.map((item) => (
-            <article key={item.id} className="rounded-xl border border-slate-200 bg-white p-4">
-              <div className="flex flex-col xl:flex-row gap-4">
-                <div className="w-full xl:w-48 shrink-0">
-                  {item.imageUrl ? (
-                    <img
-                      src={item.imageUrl}
-                      alt={item.title}
-                      className="w-full h-40 xl:h-32 object-cover rounded-lg border border-slate-200"
-                    />
-                  ) : (
-                    <div className="w-full h-40 xl:h-32 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-center text-slate-400">
-                      <CalendarClock className="h-10 w-10" />
-                    </div>
-                  )}
-                </div>
+            <label className="space-y-1">
+              <span className="text-sm font-medium text-slate-700">Giá khởi điểm (VNĐ)</span>
+              <input
+                type="number"
+                min={1000}
+                step={1000}
+                value={form.startPrice}
+                onChange={(e) => setForm((prev) => ({ ...prev, startPrice: e.target.value }))}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#CB5C72]"
+              />
+            </label>
 
-                <div className="flex-1 space-y-3 min-w-0">
-                  <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-2">
-                    <div>
-                      <h2 className="text-base font-semibold text-slate-900">{item.title}</h2>
-                      <p className="text-sm text-slate-600 mt-1 line-clamp-2">{item.description}</p>
-                    </div>
-                    <span
-                      className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold h-fit ${getStatusBadgeClass(
-                        item.status,
-                      )}`}
-                    >
-                      {item.status}
-                    </span>
-                  </div>
+            <label className="space-y-1">
+              <span className="text-sm font-medium text-slate-700">Thời gian bắt đầu</span>
+              <input
+                type="datetime-local"
+                value={form.startTime}
+                onChange={(e) => setForm((prev) => ({ ...prev, startTime: e.target.value }))}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#CB5C72]"
+              />
+            </label>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-2 text-sm">
-                    <InfoCell
-                      icon={<User className="h-3.5 w-3.5 text-slate-500" />}
-                      label="Seller"
-                      value={item.seller?.username || '-'}
-                    />
-                    <InfoCell
-                      icon={<FolderOpen className="h-3.5 w-3.5 text-slate-500" />}
-                      label="Danh muc"
-                      value={item.category?.name || '-'}
-                    />
-                    <InfoCell label="Gia hien tai" value={formatCurrency(item.startPrice)} />
-                    <InfoCell label="Buoc gia hien tai" value={formatCurrency(item.minBidStep)} />
-                  </div>
+            <label className="space-y-1">
+              <span className="text-sm font-medium text-slate-700">Thời gian kết thúc</span>
+              <input
+                type="datetime-local"
+                value={form.endTime}
+                onChange={(e) => setForm((prev) => ({ ...prev, endTime: e.target.value }))}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#CB5C72]"
+              />
+            </label>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-slate-500">
-                    <p>Lich hien tai bat dau: {formatDate(item.startTime)}</p>
-                    <p>Lich hien tai ket thuc: {formatDate(item.endTime)}</p>
-                  </div>
+            <label className="space-y-1">
+              <span className="text-sm font-medium text-slate-700">Bước giá (VNĐ)</span>
+              <input
+                type="number"
+                min={1000}
+                step={1000}
+                value={form.minBidStep}
+                onChange={(e) => setForm((prev) => ({ ...prev, minBidStep: e.target.value }))}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#CB5C72]"
+              />
+            </label>
+          </div>
 
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                    <label className="space-y-1">
-                      <span className="text-xs font-medium text-slate-600">Bat dau</span>
-                      <input
-                        type="datetime-local"
-                        value={forms[item.id]?.startTime ?? ''}
-                        onChange={(e) => handleFieldChange(item.id, 'startTime', e.target.value)}
-                        disabled={item.status !== 'PENDING'}
-                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100"
-                      />
-                    </label>
-                    <label className="space-y-1">
-                      <span className="text-xs font-medium text-slate-600">Ket thuc</span>
-                      <input
-                        type="datetime-local"
-                        value={forms[item.id]?.endTime ?? ''}
-                        onChange={(e) => handleFieldChange(item.id, 'endTime', e.target.value)}
-                        disabled={item.status !== 'PENDING'}
-                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100"
-                      />
-                    </label>
-                  </div>
-
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                    <label className="space-y-1">
-                      <span className="text-xs font-medium text-slate-600">Gia khoi diem</span>
-                      <input
-                        type="number"
-                        min={1000}
-                        step={1000}
-                        value={forms[item.id]?.startPrice ?? ''}
-                        onChange={(e) => handleFieldChange(item.id, 'startPrice', e.target.value)}
-                        disabled={item.status !== 'PENDING'}
-                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100"
-                      />
-                    </label>
-                    <label className="space-y-1">
-                      <span className="text-xs font-medium text-slate-600">Buoc gia</span>
-                      <input
-                        type="number"
-                        min={1000}
-                        step={1000}
-                        value={forms[item.id]?.minBidStep ?? ''}
-                        onChange={(e) => handleFieldChange(item.id, 'minBidStep', e.target.value)}
-                        disabled={item.status !== 'PENDING'}
-                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100"
-                      />
-                    </label>
-                  </div>
-
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleSaveConfig(item)}
-                      disabled={item.status !== 'PENDING' || configMutation.isPending}
-                      className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
-                    >
-                      <Save className="h-4 w-4" />
-                      Luu cau hinh
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleCancelSession(item)}
-                      disabled={
-                        item.status === 'ENDED' ||
-                        item.status === 'CANCELLED' ||
-                        cancelMutation.isPending
-                      }
-                      className="inline-flex items-center gap-2 rounded-lg bg-rose-600 px-3 py-2 text-sm font-medium text-white hover:bg-rose-700 disabled:opacity-60"
-                    >
-                      <Ban className="h-4 w-4" />
-                      Huy phien
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </article>
-          ))}
+          <button
+            type="button"
+            onClick={handleCreateSession}
+            disabled={createSessionMutation.isPending}
+            className="mt-4 inline-flex items-center gap-2 rounded-lg bg-[#7A1F2B] px-4 py-2 text-sm font-semibold text-white hover:bg-[#611521] disabled:opacity-60"
+          >
+            <CalendarClock className="h-4 w-4" />
+            {createSessionMutation.isPending ? 'Đang tạo phiên...' : 'Lưu và tạo phiên'}
+          </button>
         </section>
       )}
 
-      {data && data.totalPages > 1 && (
-        <div className="flex items-center justify-center gap-2 pt-2">
-          <button
-            onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-            disabled={page === 1}
-            className="px-3 py-2 text-sm rounded-lg border border-slate-300 disabled:opacity-50 hover:bg-slate-50"
-          >
-            Truoc
-          </button>
-          <span className="text-sm text-slate-600">
-            Trang {page}/{data.totalPages}
-          </span>
-          <button
-            onClick={() => setPage((prev) => Math.min(data.totalPages, prev + 1))}
-            disabled={page === data.totalPages}
-            className="px-3 py-2 text-sm rounded-lg border border-slate-300 disabled:opacity-50 hover:bg-slate-50"
-          >
-            Sau
-          </button>
+      <section className="rounded-xl border border-slate-200 bg-white p-4">
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          {(['ALL', 'PENDING', 'ACTIVE', 'SUSPENDED', 'ENDED', 'CANCELLED'] as SessionFilter[]).map(
+            (filter) => (
+              <button
+                key={filter}
+                type="button"
+                onClick={() => setStatusFilter(filter)}
+                className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                  statusFilter === filter
+                    ? 'bg-[#7A1F2B] text-white'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                {filter === 'ALL' ? 'Tất cả' : statusLabel(filter)}
+              </button>
+            ),
+          )}
         </div>
-      )}
-    </div>
-  );
-}
 
-function InfoCell({ label, value, icon }: { label: string; value: string; icon?: ReactNode }) {
-  return (
-    <div className="rounded-lg border border-slate-200 px-3 py-2">
-      <p className="text-xs text-slate-500 inline-flex items-center gap-1">
-        {icon}
-        {label}
-      </p>
-      <p className="text-sm font-medium text-slate-900 mt-1 break-words">{value}</p>
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead className="bg-slate-50 text-slate-600">
+              <tr>
+                <th className="px-3 py-2 text-left font-semibold">Phiên</th>
+                <th className="px-3 py-2 text-left font-semibold">Trạng thái</th>
+                <th className="px-3 py-2 text-right font-semibold">Giá hiện tại</th>
+                <th className="px-3 py-2 text-left font-semibold">Người thắng</th>
+                <th className="px-3 py-2 text-left font-semibold">Bắt đầu</th>
+                <th className="px-3 py-2 text-left font-semibold">Kết thúc</th>
+                <th className="px-3 py-2 text-right font-semibold">Hành động</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredSessions.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-3 py-8 text-center text-slate-500">
+                    Không có phiên phù hợp bộ lọc.
+                  </td>
+                </tr>
+              ) : (
+                filteredSessions.map((item) => (
+                  <tr key={item.id} className="border-t border-slate-100">
+                    <td className="px-3 py-2">
+                      <p className="font-medium text-slate-900">{item.title}</p>
+                      <p className="text-xs text-slate-500">{item.category?.name ?? '-'}</p>
+                    </td>
+                    <td className="px-3 py-2">
+                      <span
+                        className={`rounded-full px-2 py-1 text-xs font-semibold ${statusClass(item.status)}`}
+                      >
+                        {statusLabel(item.status)}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-right text-slate-700">
+                      {item.currentPrice.toLocaleString('vi-VN')} VNĐ
+                    </td>
+                    <td className="px-3 py-2 text-slate-700">{item.winnerUsername ?? '-'}</td>
+                    <td className="px-3 py-2 text-slate-700">{formatDateTimeVN(item.startTime)}</td>
+                    <td className="px-3 py-2 text-slate-700">{formatDateTimeVN(item.endTime)}</td>
+                    <td className="px-3 py-2 text-right">
+                      <Link
+                        to={`/seller/products/${item.id}/edit`}
+                        className="inline-flex items-center gap-1 rounded-lg border border-[#E7B8C1] bg-[#FFF1F3] px-3 py-1.5 text-xs font-semibold text-[#7A1F2B] hover:bg-[#FFE6EB]"
+                      >
+                        Sửa
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => handleEmergencyCancel(item.id)}
+                        disabled={
+                          !['PENDING', 'SUSPENDED'].includes(item.status) ||
+                          cancelSessionMutation.isPending
+                        }
+                        className="ml-2 inline-flex items-center gap-1 rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-50"
+                      >
+                        <Ban className="h-3.5 w-3.5" />
+                        Hủy phiên
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
     </div>
   );
 }

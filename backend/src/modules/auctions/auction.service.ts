@@ -1,4 +1,4 @@
-import type { AuctionReviewStatus, Prisma } from '@prisma/client';
+import type { AuctionReviewStatus, Prisma, SystemLogLevel } from '@prisma/client';
 import type { AuctionStatus } from '@auction/shared';
 import { prisma } from '../../config/database';
 import { AppError } from '../../middlewares/error.middleware';
@@ -12,7 +12,13 @@ import type {
   UpdateAuctionInput,
 } from './auction.schema';
 
-const PUBLIC_AUCTION_STATUSES: AuctionStatus[] = ['PENDING', 'ACTIVE', 'ENDED', 'CANCELLED'];
+const PUBLIC_AUCTION_STATUSES: AuctionStatus[] = [
+  'PENDING',
+  'ACTIVE',
+  'ENDED',
+  'SUSPENDED',
+  'CANCELLED',
+];
 
 type AuctionUserSummary = {
   id: string;
@@ -73,6 +79,14 @@ type AdminMonitoringParams = {
   reviewStatus?: AuctionReviewStatus;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
+};
+
+type AdminSystemLogParams = {
+  page?: number;
+  limit?: number;
+  level?: SystemLogLevel;
+  source?: string;
+  search?: string;
 };
 
 function validateSessionWindow(startTime: Date, endTime: Date) {
@@ -236,6 +250,13 @@ export async function createAuction(sellerId: string, input: CreateAuctionInput)
       startPrice: input.startPrice,
       currentPrice: input.startPrice,
       minBidStep: input.minBidStep ?? 1000,
+      status: 'REVIEW',
+      reviewStatus: 'PENDING_REVIEW',
+      reviewNote: null,
+      reviewedAt: null,
+      reviewedById: null,
+      heldBidderId: null,
+      heldAmount: 0,
       startTime,
       endTime,
       sellerId,
@@ -286,6 +307,8 @@ export async function createAuctionSession(auctionId: string, input: CreateAucti
       currentPrice: input.startPrice,
       minBidStep: input.minBidStep,
       status: 'PENDING',
+      heldBidderId: null,
+      heldAmount: 0,
     },
     include: {
       seller: { select: { id: true, username: true, avatar: true } },
@@ -295,8 +318,11 @@ export async function createAuctionSession(auctionId: string, input: CreateAucti
     },
   });
 
-  await redis.set(REDIS_KEYS.auctionCurrentPrice(auctionId), input.startPrice);
-  await redis.del(REDIS_KEYS.auctionBidCount(auctionId));
+  await Promise.all([
+    redis.set(REDIS_KEYS.auctionCurrentPrice(auctionId), input.startPrice),
+    redis.del(REDIS_KEYS.auctionBidCount(auctionId)),
+    redis.del(REDIS_KEYS.auctionRecentBids(auctionId)),
+  ]);
 
   return formatAuction(updated);
 }
@@ -343,6 +369,8 @@ export async function updateAuctionSessionConfig(
       startPrice: input.startPrice,
       currentPrice: input.startPrice,
       minBidStep: input.minBidStep,
+      heldBidderId: null,
+      heldAmount: 0,
     },
     include: {
       seller: { select: { id: true, username: true, avatar: true } },
@@ -352,8 +380,11 @@ export async function updateAuctionSessionConfig(
     },
   });
 
-  await redis.set(REDIS_KEYS.auctionCurrentPrice(auctionId), input.startPrice);
-  await redis.del(REDIS_KEYS.auctionBidCount(auctionId));
+  await Promise.all([
+    redis.set(REDIS_KEYS.auctionCurrentPrice(auctionId), input.startPrice),
+    redis.del(REDIS_KEYS.auctionBidCount(auctionId)),
+    redis.del(REDIS_KEYS.auctionRecentBids(auctionId)),
+  ]);
 
   return formatAuction(updated);
 }
@@ -361,7 +392,13 @@ export async function updateAuctionSessionConfig(
 export async function cancelAuctionSession(auctionId: string, _input?: CancelAuctionSessionInput) {
   const auction = await prisma.auction.findUnique({
     where: { id: auctionId },
-    select: { id: true, status: true, reviewStatus: true },
+    select: {
+      id: true,
+      status: true,
+      reviewStatus: true,
+      heldBidderId: true,
+      heldAmount: true,
+    },
   });
 
   if (!auction) {
@@ -376,19 +413,92 @@ export async function cancelAuctionSession(auctionId: string, _input?: CancelAuc
     throw new AppError('Auction session is already closed', 400);
   }
 
-  const updated = await prisma.auction.update({
+  const updated = await prisma.$transaction(async (tx) => {
+    const heldAmount = Number(auction.heldAmount);
+    if (auction.heldBidderId && Number.isFinite(heldAmount) && heldAmount > 0) {
+      await tx.user.update({
+        where: { id: auction.heldBidderId },
+        data: {
+          balance: { increment: heldAmount },
+        },
+      });
+    }
+
+    return tx.auction.update({
+      where: { id: auctionId },
+      data: {
+        status: 'CANCELLED',
+        heldBidderId: null,
+        heldAmount: 0,
+      },
+      include: {
+        seller: { select: { id: true, username: true, avatar: true } },
+        category: { select: { id: true, name: true, slug: true } },
+        reviewedBy: { select: { id: true, username: true, email: true } },
+        _count: { select: { bids: true } },
+      },
+    });
+  });
+
+  await Promise.all([
+    redis.del(REDIS_KEYS.auctionCurrentPrice(auctionId)),
+    redis.del(REDIS_KEYS.auctionBidCount(auctionId)),
+    redis.del(REDIS_KEYS.auctionRecentBids(auctionId)),
+  ]);
+
+  return formatAuction(updated);
+}
+
+export async function suspendAuctionSession(auctionId: string, _input?: CancelAuctionSessionInput) {
+  const auction = await prisma.auction.findUnique({
     where: { id: auctionId },
-    data: { status: 'CANCELLED' },
-    include: {
-      seller: { select: { id: true, username: true, avatar: true } },
-      category: { select: { id: true, name: true, slug: true } },
-      reviewedBy: { select: { id: true, username: true, email: true } },
-      _count: { select: { bids: true } },
+    select: {
+      id: true,
+      status: true,
+      reviewStatus: true,
+      heldBidderId: true,
+      heldAmount: true,
     },
   });
 
-  await redis.del(REDIS_KEYS.auctionCurrentPrice(auctionId));
-  await redis.del(REDIS_KEYS.auctionBidCount(auctionId));
+  if (!auction) {
+    throw new AppError('Auction not found', 404);
+  }
+
+  if (auction.reviewStatus !== 'APPROVED') {
+    throw new AppError('Only approved products can be managed', 400);
+  }
+
+  if (auction.status !== 'ACTIVE') {
+    throw new AppError('Only active auction sessions can be suspended', 400);
+  }
+
+  const updated = await prisma.$transaction(async (tx) => {
+    const heldAmount = Number(auction.heldAmount);
+    if (auction.heldBidderId && Number.isFinite(heldAmount) && heldAmount > 0) {
+      await tx.user.update({
+        where: { id: auction.heldBidderId },
+        data: {
+          balance: { increment: heldAmount },
+        },
+      });
+    }
+
+    return tx.auction.update({
+      where: { id: auctionId },
+      data: {
+        status: 'SUSPENDED',
+        heldBidderId: null,
+        heldAmount: 0,
+      },
+      include: {
+        seller: { select: { id: true, username: true, avatar: true } },
+        category: { select: { id: true, name: true, slug: true } },
+        reviewedBy: { select: { id: true, username: true, email: true } },
+        _count: { select: { bids: true } },
+      },
+    });
+  });
 
   return formatAuction(updated);
 }
@@ -436,6 +546,7 @@ export async function getAdminMonitoring(params: AdminMonitoringParams) {
       where,
       include: {
         seller: { select: { id: true, username: true, avatar: true } },
+        winner: { select: { id: true, username: true } },
         category: { select: { id: true, name: true, slug: true } },
         _count: { select: { bids: true } },
       },
@@ -448,7 +559,7 @@ export async function getAdminMonitoring(params: AdminMonitoringParams) {
       by: ['status'],
       _count: { _all: true },
     }),
-    prisma.auction.count({ where: { reviewStatus: 'PENDING_REVIEW' } }),
+    prisma.auction.count({ where: { status: 'REVIEW', reviewStatus: 'PENDING_REVIEW' } }),
     prisma.bid.count(),
     prisma.bid.count({ where: { createdAt: { gte: oneDayAgo } } }),
     prisma.auction.count({ where: { status: 'ACTIVE', endTime: { lte: now } } }),
@@ -462,6 +573,7 @@ export async function getAdminMonitoring(params: AdminMonitoringParams) {
     REVIEW: 0,
     ACTIVE: 0,
     ENDED: 0,
+    SUSPENDED: 0,
     CANCELLED: 0,
   };
 
@@ -472,10 +584,15 @@ export async function getAdminMonitoring(params: AdminMonitoringParams) {
   return {
     summary: {
       totalAuctions:
-        statusCounts.PENDING + statusCounts.ACTIVE + statusCounts.ENDED + statusCounts.CANCELLED,
+        statusCounts.PENDING +
+        statusCounts.ACTIVE +
+        statusCounts.ENDED +
+        statusCounts.SUSPENDED +
+        statusCounts.CANCELLED,
       pendingAuctions: statusCounts.PENDING,
       activeAuctions: statusCounts.ACTIVE,
       endedAuctions: statusCounts.ENDED,
+      suspendedAuctions: statusCounts.SUSPENDED,
       cancelledAuctions: statusCounts.CANCELLED,
       pendingReviewProducts,
       totalBids,
@@ -491,11 +608,59 @@ export async function getAdminMonitoring(params: AdminMonitoringParams) {
   };
 }
 
-export async function updateAuction(id: string, sellerId: string, input: UpdateAuctionInput) {
+export async function getAdminSystemLogs(params: AdminSystemLogParams) {
+  const page = params.page && params.page > 0 ? params.page : 1;
+  const limit = params.limit && params.limit > 0 ? params.limit : 30;
+  const skip = (page - 1) * limit;
+
+  const where: Prisma.SystemLogWhereInput = {
+    ...(params.level && { level: params.level }),
+    ...(params.source && { source: { equals: params.source, mode: 'insensitive' } }),
+    ...(params.search && {
+      OR: [
+        { message: { contains: params.search, mode: 'insensitive' } },
+        { source: { contains: params.search, mode: 'insensitive' } },
+      ],
+    }),
+  };
+
+  const [items, total] = await Promise.all([
+    prisma.systemLog.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take: limit,
+    }),
+    prisma.systemLog.count({ where }),
+  ]);
+
+  return {
+    data: items,
+    total,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit),
+  };
+}
+
+export async function updateAuction(
+  id: string,
+  actorId: string,
+  input: UpdateAuctionInput,
+  isAdmin = false,
+) {
   const auction = await prisma.auction.findUnique({ where: { id } });
   if (!auction) throw new AppError('Auction not found', 404);
-  if (auction.sellerId !== sellerId) throw new AppError('Forbidden', 403);
+  if (!isAdmin && auction.sellerId !== actorId) throw new AppError('Forbidden', 403);
+
+  const editableStatus = auction.status === 'PENDING' || auction.status === 'REVIEW';
+  if (!editableStatus) throw new AppError('Only pending/review auctions can be edited', 400);
+  if (auction.status === 'REVIEW') {
+    auction.status = 'PENDING';
+  }
   if (auction.status !== 'PENDING') throw new AppError('Chỉ có thể chỉnh sửa đấu giá chưa bắt đầu');
+  if (!isAdmin && auction.reviewStatus === 'APPROVED')
+    throw new AppError('Approved auctions cannot be edited by seller', 400);
 
   const updated = await prisma.auction.update({
     where: { id },
@@ -521,8 +686,11 @@ export async function deleteAuction(id: string, sellerId: string, isAdmin: boole
   if (auction.status === 'ACTIVE') throw new AppError('Không thể xoá đấu giá đang diễn ra');
 
   await prisma.auction.delete({ where: { id } });
-  await redis.del(REDIS_KEYS.auctionCurrentPrice(id));
-  await redis.del(REDIS_KEYS.auctionBidCount(id));
+  await Promise.all([
+    redis.del(REDIS_KEYS.auctionCurrentPrice(id)),
+    redis.del(REDIS_KEYS.auctionBidCount(id)),
+    redis.del(REDIS_KEYS.auctionRecentBids(id)),
+  ]);
 }
 
 export async function submitAuctionForReview(id: string, sellerId: string) {
@@ -531,10 +699,17 @@ export async function submitAuctionForReview(id: string, sellerId: string) {
   if (auction.sellerId !== sellerId) throw new AppError('Forbidden', 403);
   if (auction.status !== 'PENDING')
     throw new AppError('Chỉ có thể gửi duyệt đấu giá ở trạng thái bản nháp (PENDING)');
+  if (auction.reviewStatus === 'APPROVED') throw new AppError('Auction already approved', 400);
 
   const updated = await prisma.auction.update({
     where: { id },
-    data: { status: 'REVIEW' },
+    data: {
+      status: 'REVIEW',
+      reviewStatus: 'PENDING_REVIEW',
+      reviewNote: null,
+      reviewedAt: null,
+      reviewedById: null,
+    },
     include: {
       seller: { select: { id: true, username: true } },
       category: true,
@@ -554,13 +729,18 @@ const REVIEW_ACTION_TO_STATUS: Record<ReviewAuctionInput['action'], AuctionRevie
   REJECT: 'REJECTED',
   REQUEST_CHANGES: 'CHANGES_REQUESTED',
 };
+const REVIEW_ACTION_TO_AUCTION_STATUS: Record<ReviewAuctionInput['action'], AuctionStatus> = {
+  APPROVE: 'PENDING',
+  REJECT: 'CANCELLED',
+  REQUEST_CHANGES: 'PENDING',
+};
 
 export async function getReviewQueue(params: { page?: number; limit?: number }) {
   const page = params.page && params.page > 0 ? params.page : 1;
   const limit = params.limit && params.limit > 0 ? params.limit : 20;
   const skip = (page - 1) * limit;
 
-  const where = { reviewStatus: 'PENDING_REVIEW' as const };
+  const where = { status: 'REVIEW' as const, reviewStatus: 'PENDING_REVIEW' as const };
 
   const [items, total] = await Promise.all([
     prisma.auction.findMany({
@@ -594,20 +774,23 @@ export async function reviewAuction(
 ) {
   const auction = await prisma.auction.findUnique({
     where: { id: auctionId },
-    select: { id: true, reviewStatus: true },
+    select: { id: true, status: true, reviewStatus: true },
   });
 
   if (!auction) {
     throw new AppError('Auction not found', 404);
   }
 
-  if (auction.reviewStatus !== 'PENDING_REVIEW') {
+  const isReviewableStatus = auction.status === 'REVIEW' || auction.status === 'PENDING';
+
+  if (!isReviewableStatus || auction.reviewStatus !== 'PENDING_REVIEW') {
     throw new AppError('Auction này đã được xử lý duyệt trước đó', 400);
   }
 
   const updated = await prisma.auction.update({
     where: { id: auctionId },
     data: {
+      status: REVIEW_ACTION_TO_AUCTION_STATUS[input.action],
       reviewStatus: REVIEW_ACTION_TO_STATUS[input.action],
       reviewNote: input.note?.trim() ? input.note.trim() : null,
       reviewedAt: new Date(),

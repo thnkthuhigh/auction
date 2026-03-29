@@ -35,10 +35,11 @@ export async function socketAuthMiddleware(
     };
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },
-      select: { id: true, username: true },
+      select: { id: true, username: true, isActive: true },
     });
 
     if (!user) return next(new Error('User not found'));
+    if (!user.isActive) return next(new Error('Account is locked'));
 
     socket.data.isAuthenticated = true;
     socket.data.userId = user.id;

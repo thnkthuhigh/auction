@@ -23,7 +23,8 @@
     "prisma:seed": "npm run seed --workspace=backend",
     "docker:up": "docker-compose up -d postgres redis",
     "docker:down": "docker-compose down",
-    "setup": "node scripts/setup.mjs"
+    "setup": "node scripts/setup.mjs",
+    "perf:realtime": "node scripts/realtime-benchmark.mjs"
   },
   "devDependencies": {
     "@commitlint/cli": "^18.6.1",

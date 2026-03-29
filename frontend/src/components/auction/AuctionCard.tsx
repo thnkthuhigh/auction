@@ -18,25 +18,24 @@ interface Props {
   auction: Auction;
 }
 
-const statusColors = {
+const statusColors: Record<Auction['status'], string> = {
   PENDING: 'bg-amber-100 text-amber-800',
-  REVIEW: 'bg-blue-100 text-blue-800',
+  REVIEW: 'bg-[#FFF1F3] text-[#8F2A3E]',
   ACTIVE: 'bg-emerald-100 text-emerald-800',
+  SUSPENDED: 'bg-orange-100 text-orange-800',
   ENDED: 'bg-slate-200 text-slate-700',
   CANCELLED: 'bg-rose-100 text-rose-700',
 };
 
-const statusLabels = {
-  PENDING: 'Bản nháp',
+const statusLabels: Record<Auction['status'], string> = {
+  PENDING: 'Sắp mở',
   REVIEW: 'Chờ duyệt',
   ACTIVE: 'Đang đấu giá',
+  SUSPENDED: 'Tạm dừng',
   ENDED: 'Đã kết thúc',
-  CANCELLED: 'Đã huỷ',
+  CANCELLED: 'Đã hủy',
 };
 
-/**
- * TV5 phụ trách component này
- */
 export default function AuctionCard({ auction }: Props) {
   const item = auction as AuctionCardData;
   const countdown = useCountdown(auction.status === 'ACTIVE' ? auction.endTime : undefined);
@@ -52,7 +51,7 @@ export default function AuctionCard({ auction }: Props) {
 
   return (
     <Link to={`/auctions/${auction.id}`} className="group block h-full">
-      <article className="flex h-full flex-col overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm transition duration-200 hover:-translate-y-1 hover:border-blue-300 hover:shadow-xl">
+      <article className="flex h-full flex-col overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm transition duration-200 hover:-translate-y-1 hover:border-[#E7B8C1] hover:shadow-xl">
         <div className="relative overflow-hidden bg-slate-100">
           <div className="absolute left-4 top-4 z-10 inline-flex items-center gap-2 rounded-full bg-white/92 px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm backdrop-blur">
             <span className={`rounded-full px-2 py-1 ${statusColors[auction.status]}`}>
@@ -67,7 +66,7 @@ export default function AuctionCard({ auction }: Props) {
               className="aspect-[4/3] w-full object-cover transition duration-300 group-hover:scale-105"
             />
           ) : (
-            <div className="flex aspect-[4/3] items-center justify-center bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.16),_transparent_45%),linear-gradient(180deg,#f8fafc,#e2e8f0)] text-slate-400">
+            <div className="flex aspect-[4/3] items-center justify-center bg-[radial-gradient(circle_at_top,_rgba(122,31,43,0.12),_transparent_45%),linear-gradient(180deg,#fff7f8,#f5f5f5)] text-slate-400">
               <Tag className="h-14 w-14" />
             </div>
           )}
@@ -81,7 +80,7 @@ export default function AuctionCard({ auction }: Props) {
             <span className="text-xs font-medium text-slate-400">#{auction.id.slice(0, 8)}</span>
           </div>
 
-          <h3 className="mt-3 line-clamp-2 text-lg font-semibold leading-7 text-slate-900 transition group-hover:text-blue-600">
+          <h3 className="mt-3 line-clamp-2 text-lg font-semibold leading-7 text-slate-900 transition group-hover:text-[#7A1F2B]">
             {auction.title}
           </h3>
 
@@ -91,8 +90,10 @@ export default function AuctionCard({ auction }: Props) {
 
           <div className="mt-4 grid grid-cols-2 gap-3 rounded-2xl bg-slate-50 p-3">
             <div>
-              <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Giá hiện tại</p>
-              <div className="mt-1 flex items-center gap-1 text-blue-600">
+              <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                Giá hiện tại
+              </p>
+              <div className="mt-1 flex items-center gap-1 text-[#7A1F2B]">
                 <TrendingUp className="h-4 w-4" />
                 <span className="text-base font-bold">
                   {auction.currentPrice.toLocaleString('vi-VN')} ₫
@@ -133,8 +134,8 @@ export default function AuctionCard({ auction }: Props) {
                 )}
                 <span className="font-medium">{footerLabel}</span>
               </span>
-              <span className="font-semibold text-slate-900 transition group-hover:text-blue-600">
-                Xem chi tiết
+              <span className="font-semibold text-slate-900 transition group-hover:text-[#7A1F2B]">
+                {auction.status === 'ACTIVE' ? 'Tham gia ngay' : 'Xem chi tiết'}
               </span>
             </div>
           </div>

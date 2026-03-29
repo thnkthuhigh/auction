@@ -3,6 +3,7 @@ import type {
   Auction,
   AuctionReviewStatus,
   AuctionStatus,
+  Bid,
   CreateAuctionDTO,
   AuctionFilters,
   PaginatedResponse,
@@ -22,6 +23,14 @@ export interface CancelAuctionSessionPayload {
   reason?: string;
 }
 
+export interface UpdateAuctionPayload {
+  title?: string;
+  description?: string;
+  imageUrl?: string;
+  startTime?: string;
+  endTime?: string;
+}
+
 export interface AdminReviewQueueItem {
   id: string;
   title: string;
@@ -39,6 +48,8 @@ export interface AdminReviewQueueItem {
   endTime: string;
   createdAt: string;
   sellerId: string;
+  winnerId?: string | null;
+  winnerUsername?: string;
   categoryId: string;
   totalBids: number;
   seller?: {
@@ -47,6 +58,10 @@ export interface AdminReviewQueueItem {
     email?: string;
     avatar?: string | null;
   };
+  winner?: {
+    id: string;
+    username: string;
+  } | null;
   category?: {
     id: string;
     name: string;
@@ -54,11 +69,29 @@ export interface AdminReviewQueueItem {
   };
 }
 
+export interface AdminSystemLogItem {
+  id: string;
+  level: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR';
+  message: string;
+  source: string;
+  meta?: unknown;
+  createdAt: string;
+}
+
+export interface AdminSystemLogsResponse {
+  data: AdminSystemLogItem[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
 export interface AdminMonitoringSummary {
   totalAuctions: number;
   pendingAuctions: number;
   activeAuctions: number;
   endedAuctions: number;
+  suspendedAuctions: number;
   cancelledAuctions: number;
   pendingReviewProducts: number;
   totalBids: number;
@@ -76,6 +109,11 @@ export interface AdminMonitoringResponse {
   totalPages: number;
 }
 
+export type PlaceBidResponse = Bid & {
+  currentPrice: number;
+  totalBids: number;
+};
+
 export const auctionService = {
   getAuctions: async (filters: AuctionFilters = {}): Promise<PaginatedResponse<Auction>> => {
     const res = await api.get('/auctions', { params: filters });
@@ -89,6 +127,11 @@ export const auctionService = {
 
   createAuction: async (data: CreateAuctionDTO): Promise<Auction> => {
     const res = await api.post('/auctions', data);
+    return res.data.data;
+  },
+
+  updateAuction: async (id: string, payload: UpdateAuctionPayload): Promise<Auction> => {
+    const res = await api.put(`/auctions/${id}`, payload);
     return res.data.data;
   },
 
@@ -120,8 +163,12 @@ export const auctionService = {
     return res.data;
   },
 
-  placeBid: async (auctionId: string, amount: number) => {
-    const res = await api.post('/bids', { auctionId, amount });
+  placeBid: async (
+    auctionId: string,
+    amount: number,
+    clientRequestId?: string,
+  ): Promise<PlaceBidResponse> => {
+    const res = await api.post('/bids', { auctionId, amount, clientRequestId });
     return res.data.data;
   },
 
@@ -147,6 +194,21 @@ export const auctionService = {
     } = {},
   ) => {
     const res = await api.get<AdminMonitoringResponse>('/auctions/admin/monitoring', {
+      params,
+    });
+    return res.data;
+  },
+
+  getAdminSystemLogs: async (
+    params: {
+      page?: number;
+      limit?: number;
+      level?: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR';
+      source?: string;
+      search?: string;
+    } = {},
+  ) => {
+    const res = await api.get<AdminSystemLogsResponse>('/auctions/admin/system-logs', {
       params,
     });
     return res.data;
@@ -182,6 +244,14 @@ export const auctionService = {
   cancelAuctionSession: async (auctionId: string, payload: CancelAuctionSessionPayload = {}) => {
     const res = await api.patch<{ data: AdminReviewQueueItem }>(
       `/auctions/${auctionId}/session/cancel`,
+      payload,
+    );
+    return res.data.data;
+  },
+
+  suspendAuctionSession: async (auctionId: string, payload: CancelAuctionSessionPayload = {}) => {
+    const res = await api.patch<{ data: AdminReviewQueueItem }>(
+      `/auctions/${auctionId}/session/suspend`,
       payload,
     );
     return res.data.data;

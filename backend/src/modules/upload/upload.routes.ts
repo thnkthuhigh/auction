@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import multer, { FileFilterCallback } from 'multer';
+import multer, { type FileFilterCallback } from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { randomUUID } from 'crypto';

@@ -19,5 +19,12 @@ redis.on('error', (err) => {
 export const REDIS_KEYS = {
   auctionCurrentPrice: (auctionId: string) => `auction:${auctionId}:currentPrice`,
   auctionBidCount: (auctionId: string) => `auction:${auctionId}:bidCount`,
+  auctionRecentBids: (auctionId: string) => `auction:${auctionId}:recentBids`,
+  auctionRealtimeSnapshot: (auctionId: string) => `auction:${auctionId}:realtimeSnapshot`,
   userRateLimit: (userId: string) => `ratelimit:bid:${userId}`,
+  bidRateLimit: (userId: string, auctionId: string) => `ratelimit:bid:${userId}:${auctionId}`,
+  bidIdempotencyResult: (userId: string, auctionId: string, requestId: string) =>
+    `idempotency:bid:result:${userId}:${auctionId}:${requestId}`,
+  bidIdempotencyLock: (userId: string, auctionId: string, requestId: string) =>
+    `idempotency:bid:lock:${userId}:${auctionId}:${requestId}`,
 };

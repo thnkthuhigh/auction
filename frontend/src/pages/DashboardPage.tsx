@@ -1,225 +1,194 @@
 import { useMemo, type ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { useAuthStore } from '@/store/auth.store';
+import { BarChart3, Gavel, Trophy, UserRound, Wallet } from 'lucide-react';
 import { userService, type MyBidItem } from '@/services/user.service';
-import { auctionService } from '@/services/auction.service';
-import { LayoutDashboard, Gavel, Trophy, Wallet, Clock3 } from 'lucide-react';
+import { useAuthStore } from '@/store/auth.store';
 
-/**
- * TV4 phụ trách trang này
- */
+const EMPTY_BIDS: MyBidItem[] = [];
+
 export default function DashboardPage() {
   const { user } = useAuthStore();
 
-  const { data: myBidsResponse, isLoading: myBidsLoading } = useQuery({
-    queryKey: ['my-bids-history'],
+  const { data: myBidsResponse, isLoading: bidsLoading } = useQuery({
+    queryKey: ['dashboard-my-bids'],
     queryFn: () => userService.getMyBids({ limit: 100 }),
   });
 
-  const { data: myAuctions, isLoading: auctionsLoading } = useQuery({
-    queryKey: ['my-auctions'],
-    queryFn: () => auctionService.getMyAuctions(),
-  });
+  const myBids = myBidsResponse?.data ?? EMPTY_BIDS;
+
+  const buyerBidSnapshots = useMemo(() => {
+    const latestByAuction = new Map<string, MyBidItem>();
+    for (const bid of myBids) {
+      if (!latestByAuction.has(bid.auctionId)) {
+        latestByAuction.set(bid.auctionId, bid);
+      }
+    }
+    return Array.from(latestByAuction.values());
+  }, [myBids]);
 
   const buyerStats = useMemo(() => {
-    const bids = myBidsResponse?.data ?? [];
-    const auctions = myAuctions?.data ?? myAuctions ?? [];
-
-    const latestBidByAuction = new Map<string, MyBidItem>();
-    for (const bid of bids) {
-      if (!latestBidByAuction.has(bid.auctionId)) {
-        latestBidByAuction.set(bid.auctionId, bid);
-      }
-    }
-
-    const uniqueAuctionBids = Array.from(latestBidByAuction.values());
-    const wonAuctions = uniqueAuctionBids.filter(
-      (bid) => bid.auction.status === 'ENDED' && bid.auction.winnerId === user?.id,
+    const wins = buyerBidSnapshots.filter(
+      (item) => item.auction.status === 'ENDED' && item.auction.winnerId === user?.id,
     ).length;
+    const active = buyerBidSnapshots.filter((item) => item.auction.status === 'ACTIVE').length;
 
     return {
-      createdAuctions: Array.isArray(auctions) ? auctions.length : 0,
-      totalBids: bids.length,
-      wonAuctions,
-      balance: formatCurrencyVnd(Number(user?.balance ?? 0)),
+      totalBidAuctions: buyerBidSnapshots.length,
+      active,
+      wins,
+      balance: Number(user?.balance ?? 0),
     };
-  }, [myBidsResponse?.data, myAuctions, user?.id, user?.balance]);
-
-  const personalBidHistory: Array<{
-    id: string;
-    productName: string;
-    yourLastBid: string;
-    status: 'Đã Thắng' | 'Thua Đấu Giá' | 'Đang diễn ra';
-    finalPrice: string;
-  }> = useMemo(() => {
-    const latestBidByAuction = new Map<string, MyBidItem>();
-
-    for (const bid of myBidsResponse?.data ?? []) {
-      if (!latestBidByAuction.has(bid.auctionId)) {
-        latestBidByAuction.set(bid.auctionId, bid);
-      }
-    }
-
-    return Array.from(latestBidByAuction.values()).map((bid) => {
-      const status =
-        bid.auction.status === 'ENDED'
-          ? bid.auction.winnerId === user?.id
-            ? 'Đã Thắng'
-            : 'Thua Đấu Giá'
-          : 'Đang diễn ra';
-
-      return {
-        id: bid.auction.id,
-        productName: bid.auction.title,
-        yourLastBid: formatCurrencyVnd(bid.amount),
-        status,
-        finalPrice: formatCurrencyVnd(bid.auction.currentPrice),
-      };
-    });
-  }, [myBidsResponse?.data, user?.id]);
+  }, [buyerBidSnapshots, user?.balance, user?.id]);
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-2">
-        <LayoutDashboard className="h-6 w-6 text-blue-600" />
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-      </div>
+      <section className="rounded-[28px] bg-gradient-to-r from-[#5D1524] via-[#7A1F2B] to-[#A9344B] p-7 text-white shadow-xl">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/85">
+          Buyer Dashboard
+        </p>
+        <h1 className="mt-2 text-3xl font-black">Trung tâm quản lý cá nhân</h1>
+        <p className="mt-2 max-w-3xl text-sm text-white/90">
+          Theo dõi toàn bộ phiên bạn đã tham gia, lịch sử bid và kết quả thắng/thua. Đây là khu vực
+          dành riêng cho Người mua.
+        </p>
+        <div className="mt-4">
+          <Link
+            to="/profile"
+            className="inline-flex items-center gap-2 rounded-xl border border-white/50 bg-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/20"
+          >
+            <UserRound className="h-4 w-4" />
+            Cập nhật thông tin cá nhân
+          </Link>
+        </div>
+      </section>
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
-          icon={<Gavel className="h-5 w-5 text-blue-600" />}
-          label="Đấu giá đã tạo"
-          value={auctionsLoading ? '...' : buyerStats.createdAuctions}
-          bg="bg-blue-50"
+          label="Phiên đã tham gia"
+          value={buyerStats.totalBidAuctions}
+          icon={<Gavel className="h-5 w-5" />}
         />
         <StatCard
-          icon={<Gavel className="h-5 w-5 text-purple-600" />}
-          label="Lượt đặt giá"
-          value={myBidsLoading ? '...' : buyerStats.totalBids}
-          bg="bg-purple-50"
+          label="Phiên đang theo dõi"
+          value={buyerStats.active}
+          icon={<BarChart3 className="h-5 w-5" />}
         />
         <StatCard
-          icon={<Trophy className="h-5 w-5 text-yellow-600" />}
-          label="Phiên đã thắng"
-          value={myBidsLoading ? '...' : buyerStats.wonAuctions}
-          bg="bg-yellow-50"
+          label="Phiên thắng"
+          value={buyerStats.wins}
+          icon={<Trophy className="h-5 w-5" />}
         />
         <StatCard
-          icon={<Wallet className="h-5 w-5 text-green-600" />}
           label="Số dư"
-          value={buyerStats.balance}
-          bg="bg-green-50"
+          value={`${buyerStats.balance.toLocaleString('vi-VN')} VNĐ`}
+          icon={<Wallet className="h-5 w-5" />}
         />
-      </div>
+      </section>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-        <div className="flex items-center gap-2">
-          <h2 className="text-lg font-semibold text-gray-900">Đấu giá gần đây</h2>
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="text-lg font-semibold text-slate-900">Phiên đang tham gia</h2>
+        <p className="mt-1 text-sm text-slate-500">
+          Hiển thị trạng thái bạn đang dẫn đầu hay đã bị vượt giá.
+        </p>
+        <div className="mt-4 space-y-3">
+          {bidsLoading ? (
+            <p className="text-sm text-slate-500">Đang tải dữ liệu...</p>
+          ) : buyerBidSnapshots.filter((item) => item.auction.status === 'ACTIVE').length === 0 ? (
+            <p className="text-sm text-slate-500">Bạn chưa tham gia phiên nào đang diễn ra.</p>
+          ) : (
+            buyerBidSnapshots
+              .filter((item) => item.auction.status === 'ACTIVE')
+              .map((item) => {
+                const isLeading = item.amount >= item.auction.currentPrice;
+                return (
+                  <div key={item.id} className="rounded-xl border border-slate-200 p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="font-semibold text-slate-900">{item.auction.title}</p>
+                      <span
+                        className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                          isLeading
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : 'bg-rose-100 text-rose-700'
+                        }`}
+                      >
+                        {isLeading ? 'Đang dẫn đầu' : 'Đã bị vượt giá'}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-sm text-slate-600">
+                      Giá gần nhất của bạn: <b>{item.amount.toLocaleString('vi-VN')} VNĐ</b>
+                    </p>
+                    <p className="text-sm text-slate-600">
+                      Giá hiện tại: <b>{item.auction.currentPrice.toLocaleString('vi-VN')} VNĐ</b>
+                    </p>
+                  </div>
+                );
+              })
+          )}
         </div>
+      </section>
 
-        <div className="space-y-3 xl:col-span-1">
-          <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-            <h3 className="text-base font-semibold text-gray-900">
-              iPhone 15 Pro Max 256GB - VN/A
-            </h3>
-            <p className="mt-2 text-sm text-gray-500">Giá cuối cùng</p>
-            <p className="text-xl font-bold text-gray-900">31.000.000 đ</p>
-            <span className="mt-4 inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700">
-              Đã kết thúc
-            </span>
-          </div>
-        </div>
-
-        <div className="space-y-3 xl:col-span-2">
-          <h2 className="text-lg font-semibold text-gray-900">Lịch sử đấu giá cá nhân</h2>
-          <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-left text-sm text-gray-700">
-                <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
-                  <tr>
-                    <th className="px-4 py-3 font-semibold">Tên sản phẩm</th>
-                    <th className="px-4 py-3 font-semibold">Giá đặt cuối của bạn</th>
-                    <th className="px-4 py-3 font-semibold">Trạng thái</th>
-                    <th className="px-4 py-3 font-semibold">Giá cuối cùng</th>
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="text-lg font-semibold text-slate-900">Lịch sử bid và kết quả đấu giá</h2>
+        <div className="mt-4 overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead className="bg-slate-50 text-slate-600">
+              <tr>
+                <th className="px-3 py-2 text-left">Sản phẩm</th>
+                <th className="px-3 py-2 text-right">Giá cuối bạn đặt</th>
+                <th className="px-3 py-2 text-right">Giá chốt</th>
+                <th className="px-3 py-2 text-left">Kết quả</th>
+              </tr>
+            </thead>
+            <tbody>
+              {buyerBidSnapshots
+                .filter((item) => item.auction.status === 'ENDED')
+                .map((item) => (
+                  <tr key={item.id} className="border-t border-slate-100">
+                    <td className="px-3 py-2 font-medium text-slate-900">{item.auction.title}</td>
+                    <td className="px-3 py-2 text-right">
+                      {item.amount.toLocaleString('vi-VN')} VNĐ
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      {item.auction.currentPrice.toLocaleString('vi-VN')} VNĐ
+                    </td>
+                    <td className="px-3 py-2">
+                      <span
+                        className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                          item.auction.winnerId === user?.id
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : 'bg-rose-100 text-rose-700'
+                        }`}
+                      >
+                        {item.auction.winnerId === user?.id ? 'Thắng' : 'Thua'}
+                      </span>
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {myBidsLoading && (
-                    <tr className="border-t border-gray-100">
-                      <td colSpan={4} className="px-4 py-6 text-center text-gray-500">
-                        Đang tải lịch sử đấu giá...
-                      </td>
-                    </tr>
-                  )}
-
-                  {!myBidsLoading && personalBidHistory.length === 0 && (
-                    <tr className="border-t border-gray-100">
-                      <td colSpan={4} className="px-4 py-6 text-center text-gray-500">
-                        Bạn chưa tham gia phiên đấu giá nào.
-                      </td>
-                    </tr>
-                  )}
-
-                  {!myBidsLoading &&
-                    personalBidHistory.map((item) => (
-                      <tr key={item.id} className="border-t border-gray-100">
-                        <td className="px-4 py-3 font-medium text-gray-900">{item.productName}</td>
-                        <td className="px-4 py-3">{item.yourLastBid}</td>
-                        <td className="px-4 py-3">
-                          <StatusBadge status={item.status} />
-                        </td>
-                        <td className="px-4 py-3">{item.finalPrice}</td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+                ))}
+            </tbody>
+          </table>
         </div>
-      </div>
+      </section>
     </div>
   );
 }
 
 function StatCard({
-  icon,
   label,
   value,
-  bg,
+  icon,
 }: {
-  icon: ReactNode;
   label: string;
-  value: string | number;
-  bg: string;
+  value: number | string;
+  icon: ReactNode;
 }) {
   return (
-    <div className={`${bg} space-y-1 rounded-xl p-4`}>
-      <div className="flex items-center gap-2">
-        {icon}
-        <span className="text-xs text-gray-500">{label}</span>
+    <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-semibold uppercase tracking-[0.15em] text-slate-500">{label}</p>
+        <div className="text-[#7A1F2B]">{icon}</div>
       </div>
-      <p className="text-xl font-bold text-gray-900">{value}</p>
-    </div>
+      <p className="mt-2 text-2xl font-bold text-slate-900">{value}</p>
+    </article>
   );
-}
-
-function StatusBadge({ status }: { status: 'Đã Thắng' | 'Thua Đấu Giá' | 'Đang diễn ra' }) {
-  const styleMap: Record<typeof status, string> = {
-    'Đã Thắng': 'bg-green-100 text-green-700',
-    'Thua Đấu Giá': 'bg-red-100 text-red-700',
-    'Đang diễn ra': 'bg-orange-100 text-orange-700',
-  };
-
-  return (
-    <span
-      className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium ${styleMap[status]}`}
-    >
-      {status === 'Đang diễn ra' && <Clock3 className="h-3 w-3" />}
-      {status}
-    </span>
-  );
-}
-
-function formatCurrencyVnd(value: number): string {
-  return `${value.toLocaleString('vi-VN')} đ`;
 }

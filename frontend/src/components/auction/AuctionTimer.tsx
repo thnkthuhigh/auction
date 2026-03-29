@@ -1,12 +1,13 @@
 import { format } from 'date-fns';
 import { vi } from 'date-fns/locale';
-import { CalendarClock, Clock3, ShieldAlert, TimerReset } from 'lucide-react';
+import { CalendarClock, Clock3, PauseCircle, ShieldAlert, TimerReset } from 'lucide-react';
 import { useCountdown } from '@/hooks/useCountdown';
 
 interface Props {
   startTime: string;
   endTime: string;
   status: string;
+  reviewStatus?: 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED' | 'CHANGES_REQUESTED';
   serverTimeOffsetMs?: number;
 }
 
@@ -14,10 +15,11 @@ export default function AuctionTimer({
   startTime,
   endTime,
   status,
+  reviewStatus,
   serverTimeOffsetMs = 0,
 }: Props) {
-  const countdownTarget =
-    status === 'ACTIVE' ? endTime : status === 'PENDING' ? startTime : undefined;
+  const isPendingApproved = status === 'PENDING' && reviewStatus === 'APPROVED';
+  const countdownTarget = status === 'ACTIVE' ? endTime : isPendingApproved ? startTime : undefined;
   const { hours, minutes, seconds, isExpired, isUrgent } = useCountdown(
     countdownTarget,
     serverTimeOffsetMs,
@@ -30,13 +32,13 @@ export default function AuctionTimer({
     return (
       <section
         className={`rounded-[24px] border-2 p-5 shadow-sm ${
-          isUrgent ? 'border-rose-300 bg-rose-50' : 'border-blue-200 bg-blue-50'
+          isUrgent ? 'border-rose-300 bg-rose-50' : 'border-[#E7B8C1] bg-[#FFF1F3]'
         }`}
       >
         <div className="flex items-start gap-3">
           <div
             className={`flex h-11 w-11 items-center justify-center rounded-2xl ${
-              isUrgent ? 'bg-rose-100 text-rose-600' : 'bg-white text-blue-600'
+              isUrgent ? 'bg-rose-100 text-rose-600' : 'bg-white text-[#7A1F2B]'
             }`}
           >
             <Clock3 className="h-5 w-5" />
@@ -44,24 +46,24 @@ export default function AuctionTimer({
 
           <div className="min-w-0 flex-1">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
-              Dang dau gia
+              Đang đấu giá
             </p>
-            <p className="mt-1 text-lg font-semibold text-slate-900">Dem nguoc den luc ket thuc</p>
+            <p className="mt-1 text-lg font-semibold text-slate-900">Đếm ngược đến lúc kết thúc</p>
             <p className="mt-1 text-sm text-slate-500">
-              {isExpired ? 'Phien da het thoi gian.' : `Ket thuc luc ${formattedEndTime}`}
+              {isExpired ? 'Phiên đã hết thời gian.' : `Kết thúc lúc ${formattedEndTime}`}
             </p>
 
             {isExpired ? (
               <p className="mt-4 rounded-2xl bg-white px-4 py-3 text-sm font-medium text-slate-600">
-                Phien dang cho he thong chot trang thai.
+                Phiên đang chờ hệ thống chốt trạng thái.
               </p>
             ) : (
               <div className="mt-4 flex items-center gap-2">
-                <TimeBlock label="Gio" value={hours} urgent={isUrgent} />
+                <TimeBlock label="Giờ" value={hours} urgent={isUrgent} />
                 <Colon urgent={isUrgent} />
-                <TimeBlock label="Phut" value={minutes} urgent={isUrgent} />
+                <TimeBlock label="Phút" value={minutes} urgent={isUrgent} />
                 <Colon urgent={isUrgent} />
-                <TimeBlock label="Giay" value={seconds} urgent={isUrgent} />
+                <TimeBlock label="Giây" value={seconds} urgent={isUrgent} pulse={isUrgent} />
               </div>
             )}
           </div>
@@ -82,28 +84,28 @@ export default function AuctionTimer({
 
           <div className="min-w-0 flex-1">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
-              Phien cho mo
+              Phiên chờ mở
             </p>
             <p className="mt-1 text-lg font-semibold text-slate-900">
-              {startsInFuture ? 'Sap bat dau' : 'Dang o trang thai ban nhap'}
+              {isPendingApproved && startsInFuture ? 'Sắp bắt đầu' : 'Đang ở trạng thái bản nháp'}
             </p>
             <p className="mt-1 text-sm text-slate-500">
-              {startsInFuture
-                ? `Du kien mo luc ${formattedStartTime}`
-                : 'Seller van co the cap nhat hoac gui duyet phien nay.'}
+              {isPendingApproved && startsInFuture
+                ? `Dự kiến mở lúc ${formattedStartTime}`
+                : 'Seller vẫn có thể cập nhật hoặc gửi duyệt phiên này.'}
             </p>
 
-            {startsInFuture && !isExpired ? (
+            {isPendingApproved && startsInFuture && !isExpired ? (
               <div className="mt-4 flex items-center gap-2">
-                <TimeBlock label="Gio" value={hours} urgent={false} />
+                <TimeBlock label="Giờ" value={hours} urgent={false} />
                 <Colon urgent={false} />
-                <TimeBlock label="Phut" value={minutes} urgent={false} />
+                <TimeBlock label="Phút" value={minutes} urgent={false} />
                 <Colon urgent={false} />
-                <TimeBlock label="Giay" value={seconds} urgent={false} />
+                <TimeBlock label="Giây" value={seconds} urgent={false} />
               </div>
             ) : (
               <div className="mt-4 rounded-2xl bg-white px-4 py-3 text-sm text-slate-600">
-                Chua the dat gia cho toi khi phien duoc mo cong khai.
+                Chưa thể đặt giá cho tới khi phiên được mở công khai.
               </div>
             )}
           </div>
@@ -114,21 +116,45 @@ export default function AuctionTimer({
 
   if (status === 'REVIEW') {
     return (
-      <section className="rounded-[24px] border border-blue-200 bg-blue-50 p-5 shadow-sm">
+      <section className="rounded-[24px] border border-[#E7B8C1] bg-[#FFF3F5] p-5 shadow-sm">
         <div className="flex items-start gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-blue-600">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-[#7A1F2B]">
             <ShieldAlert className="h-5 w-5" />
           </div>
 
           <div className="min-w-0 flex-1">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
-              Cho duyet
+              Chờ duyệt
             </p>
             <p className="mt-1 text-lg font-semibold text-slate-900">
-              San pham dang cho admin phe duyet
+              Sản phẩm đang chờ admin phê duyệt
             </p>
             <p className="mt-1 text-sm text-slate-500">
-              Phien se duoc hien thi cong khai sau khi qua buoc kiem duyet.
+              Phiên sẽ được hiển thị công khai sau khi qua bước kiểm duyệt.
+            </p>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  if (status === 'SUSPENDED') {
+    return (
+      <section className="rounded-[24px] border border-orange-200 bg-orange-50 p-5 shadow-sm">
+        <div className="flex items-start gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-orange-600">
+            <PauseCircle className="h-5 w-5" />
+          </div>
+
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
+              Tạm dừng
+            </p>
+            <p className="mt-1 text-lg font-semibold text-slate-900">
+              Phiên đang được tạm dừng để kiểm tra
+            </p>
+            <p className="mt-1 text-sm text-slate-500">
+              Tạm dừng lúc {formattedEndTime}. Không nhận thêm lượt đặt giá mới.
             </p>
           </div>
         </div>
@@ -145,12 +171,12 @@ export default function AuctionTimer({
 
         <div className="min-w-0 flex-1">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
-            {status === 'CANCELLED' ? 'Da huy' : 'Da ket thuc'}
+            {status === 'CANCELLED' ? 'Đã hủy' : 'Đã kết thúc'}
           </p>
           <p className="mt-1 text-lg font-semibold text-slate-900">
-            {status === 'CANCELLED' ? 'Phien khong con dien ra' : 'Phien da dong'}
+            {status === 'CANCELLED' ? 'Phiên không còn diễn ra' : 'Phiên đã đóng'}
           </p>
-          <p className="mt-1 text-sm text-slate-500">Ket thuc luc {formattedEndTime}</p>
+          <p className="mt-1 text-sm text-slate-500">Kết thúc lúc {formattedEndTime}</p>
         </div>
       </div>
     </section>
@@ -159,14 +185,28 @@ export default function AuctionTimer({
 
 function Colon({ urgent }: { urgent: boolean }) {
   return (
-    <span className={`text-2xl font-bold ${urgent ? 'text-rose-600' : 'text-blue-600'}`}>:</span>
+    <span className={`text-2xl font-bold ${urgent ? 'text-rose-600' : 'text-[#7A1F2B]'}`}>:</span>
   );
 }
 
-function TimeBlock({ label, value, urgent }: { label: string; value: number; urgent: boolean }) {
+function TimeBlock({
+  label,
+  value,
+  urgent,
+  pulse = false,
+}: {
+  label: string;
+  value: number;
+  urgent: boolean;
+  pulse?: boolean;
+}) {
   return (
     <div className="min-w-[4.75rem] rounded-2xl bg-white px-3 py-3 text-center shadow-sm">
-      <div className={`text-2xl font-bold font-mono ${urgent ? 'text-rose-600' : 'text-blue-600'}`}>
+      <div
+        className={`font-mono text-2xl font-bold ${urgent ? 'text-rose-600' : 'text-[#7A1F2B]'} ${
+          pulse ? 'animate-pulse' : ''
+        }`}
+      >
         {String(value).padStart(2, '0')}
       </div>
       <div className="mt-1 text-[11px] font-medium uppercase tracking-wide text-slate-400">

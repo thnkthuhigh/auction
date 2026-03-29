@@ -1,7 +1,7 @@
 import { useRef, useState, type ChangeEvent, type DragEvent } from 'react';
-import { Upload, X, Image as ImageIcon } from 'lucide-react';
-import { uploadService } from '@/services/upload.service';
+import { Image as ImageIcon, Upload, X } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { uploadService } from '@/services/upload.service';
 
 interface ImageUploadProps {
   value?: string;
@@ -41,8 +41,9 @@ export default function ImageUpload({ value, onChange, onClear }: ImageUploadPro
 
   const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) handleFile(file);
-    // reset input so same file can be re-selected
+    if (file) {
+      void handleFile(file);
+    }
     e.target.value = '';
   };
 
@@ -50,18 +51,20 @@ export default function ImageUpload({ value, onChange, onClear }: ImageUploadPro
     e.preventDefault();
     setDragOver(false);
     const file = e.dataTransfer.files?.[0];
-    if (file) handleFile(file);
+    if (file) {
+      void handleFile(file);
+    }
   };
 
   if (value) {
     return (
-      <div className="relative w-full aspect-video rounded-lg overflow-hidden border border-gray-200 bg-gray-50">
-        <img src={value} alt="Preview" className="w-full h-full object-cover" />
+      <div className="relative aspect-video w-full overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
+        <img src={value} alt="Preview" className="h-full w-full object-cover" />
         <button
           type="button"
           onClick={onClear}
-          className="absolute top-2 right-2 bg-white/80 hover:bg-white rounded-full p-1.5 shadow transition-colors"
-          aria-label="Xoá ảnh"
+          className="absolute right-2 top-2 rounded-full bg-white/80 p-1.5 shadow transition-colors hover:bg-white"
+          aria-label="Xóa ảnh"
         >
           <X className="h-4 w-4 text-gray-700" />
         </button>
@@ -73,26 +76,35 @@ export default function ImageUpload({ value, onChange, onClear }: ImageUploadPro
     <button
       type="button"
       onClick={() => inputRef.current?.click()}
-      onDragOver={(e: DragEvent<HTMLButtonElement>) => { e.preventDefault(); setDragOver(true); }}
+      onDragOver={(e: DragEvent<HTMLButtonElement>) => {
+        e.preventDefault();
+        setDragOver(true);
+      }}
       onDragLeave={() => setDragOver(false)}
       onDrop={handleDrop}
       disabled={isUploading}
-      className={`w-full aspect-video rounded-lg border-2 border-dashed flex flex-col items-center justify-center gap-2 transition-colors cursor-pointer
-        ${dragOver ? 'border-blue-400 bg-blue-50' : 'border-gray-300 bg-gray-50 hover:border-blue-400 hover:bg-blue-50/50'}
-        disabled:opacity-60 disabled:cursor-not-allowed`}
+      className={`flex aspect-video w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed transition-colors
+        ${
+          dragOver
+            ? 'border-[#C05A70] bg-[#FFF1F3]'
+            : 'border-gray-300 bg-gray-50 hover:border-[#C05A70] hover:bg-[#FFF1F3]/70'
+        }
+        disabled:cursor-not-allowed disabled:opacity-60`}
     >
       {isUploading ? (
         <>
-          <Upload className="h-8 w-8 text-blue-500 animate-bounce" />
-          <span className="text-sm text-blue-600">Đang upload...</span>
+          <Upload className="h-8 w-8 animate-bounce text-[#8F2A3E]" />
+          <span className="text-sm text-[#7A1F2B]">Đang upload...</span>
         </>
       ) : (
         <>
           <ImageIcon className="h-8 w-8 text-gray-400" />
           <span className="text-sm text-gray-600">
-            Kéo thả hoặc <span className="text-blue-600 font-medium">chọn ảnh</span>
+            Kéo thả hoặc <span className="font-medium text-[#7A1F2B]">chọn ảnh</span>
           </span>
-          <span className="text-xs text-gray-400">JPEG, PNG, WebP, GIF – tối đa {MAX_SIZE_MB}MB</span>
+          <span className="text-xs text-gray-400">
+            JPEG, PNG, WebP, GIF - tối đa {MAX_SIZE_MB}MB
+          </span>
         </>
       )}
       <input

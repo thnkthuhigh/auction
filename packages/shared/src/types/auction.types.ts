@@ -1,9 +1,5 @@
-export type AuctionStatus = 'PENDING' | 'REVIEW' | 'ACTIVE' | 'ENDED' | 'CANCELLED';
-export type AuctionReviewStatus =
-  | 'PENDING_REVIEW'
-  | 'APPROVED'
-  | 'REJECTED'
-  | 'CHANGES_REQUESTED';
+export type AuctionStatus = 'PENDING' | 'REVIEW' | 'ACTIVE' | 'ENDED' | 'SUSPENDED' | 'CANCELLED';
+export type AuctionReviewStatus = 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED' | 'CHANGES_REQUESTED';
 
 export interface Category {
   id: string;

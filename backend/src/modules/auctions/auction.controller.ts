@@ -2,6 +2,7 @@ import type { Response, NextFunction } from 'express';
 import * as auctionService from './auction.service';
 import { AppError } from '../../middlewares/error.middleware';
 import type { AuthenticatedRequest } from '../../middlewares/auth.middleware';
+import { getIO } from '../../socket/socket.server';
 
 function requireUser(req: AuthenticatedRequest) {
   if (!req.user) {
@@ -34,11 +35,7 @@ export async function getAuctions(req: AuthenticatedRequest, res: Response, next
   }
 }
 
-export async function getMyAuctions(
-  req: AuthenticatedRequest,
-  res: Response,
-  next: NextFunction,
-) {
+export async function getMyAuctions(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   try {
     const user = requireUser(req);
     const { status, page, limit } = req.query as Record<string, string>;
@@ -77,7 +74,12 @@ export async function createAuction(req: AuthenticatedRequest, res: Response, ne
 export async function updateAuction(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   try {
     const user = requireUser(req);
-    const data = await auctionService.updateAuction(req.params.id, user.id, req.body);
+    const data = await auctionService.updateAuction(
+      req.params.id,
+      user.id,
+      req.body,
+      user.role === 'ADMIN',
+    );
     res.json({ success: true, data });
   } catch (error) {
     next(error);
@@ -153,6 +155,26 @@ export async function getAdminMonitoring(
   }
 }
 
+export async function getAdminSystemLogs(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const { page, limit, level, source, search } = req.query as Record<string, string>;
+    const data = await auctionService.getAdminSystemLogs({
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+      level: level as never,
+      source,
+      search,
+    });
+    res.json({ success: true, ...data });
+  } catch (error) {
+    next(error);
+  }
+}
+
 export async function reviewAuction(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   try {
     const user = requireUser(req);
@@ -196,7 +218,36 @@ export async function cancelAuctionSession(
 ) {
   try {
     const data = await auctionService.cancelAuctionSession(req.params.id, req.body);
+    try {
+      const io = getIO();
+      io.to(`auction:${req.params.id}`).emit('auction:updated', {
+        auction: { id: req.params.id, status: 'CANCELLED' },
+      });
+    } catch {
+      // ignore socket init errors in HTTP flow
+    }
     res.json({ success: true, data, message: 'Huy phien dau gia thanh cong' });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function suspendAuctionSession(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const data = await auctionService.suspendAuctionSession(req.params.id, req.body);
+    try {
+      const io = getIO();
+      io.to(`auction:${req.params.id}`).emit('auction:updated', {
+        auction: { id: req.params.id, status: 'SUSPENDED' },
+      });
+    } catch {
+      // ignore socket init errors in HTTP flow
+    }
+    res.json({ success: true, data, message: 'Tam dung phien dau gia thanh cong' });
   } catch (error) {
     next(error);
   }
