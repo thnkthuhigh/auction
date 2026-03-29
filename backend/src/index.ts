@@ -9,8 +9,6 @@ import { startAuctionScheduler } from './services/auction-scheduler.service';
 import { initSocket } from './socket/socket.server';
 import { logger } from './utils/logger';
 
-const PORT = Number(process.env.BACKEND_PORT || 3001);
-
 function resolvePositiveInt(rawValue: string | undefined, fallback: number): number {
   const parsed = Number(rawValue);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
@@ -21,6 +19,7 @@ function resolveBoolean(rawValue: string | undefined, fallback: boolean): boolea
   return rawValue.trim().toLowerCase() === 'true';
 }
 
+const PORT = resolvePositiveInt(process.env.PORT ?? process.env.BACKEND_PORT, 3001);
 const configuredWorkers = resolvePositiveInt(process.env.CLUSTER_WORKERS, 1);
 const cpuCount = Math.max(1, os.cpus().length);
 const workerCount = Math.min(configuredWorkers, cpuCount);

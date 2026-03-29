@@ -575,6 +575,8 @@ npm run dev:frontend
    - Seller gửi duyệt → Admin duyệt → tạo phiên → Buyer vào phòng → đặt giá realtime → chốt phiên.
 4. Jira issue liên quan đã gắn commit/PR và chuyển đúng trạng thái theo flow team.
 
+Checklist triển khai chi tiết Render + Vercel: [docs/deploy-render-vercel.md](docs/deploy-render-vercel.md)
+
 ---
 
 ## 📊 Báo Cáo Hiệu Năng Realtime (Dùng Để Trình Bày Với Giảng Viên)
