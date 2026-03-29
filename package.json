@@ -17,7 +17,7 @@
     "format": "prettier --write \"**/*.{ts,tsx,js,json,md,yml}\" --ignore-path .prettierignore",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,json,md,yml}\" --ignore-path .prettierignore",
     "type-check": "npm run type-check --workspaces --if-present",
-    "prepare": "husky",
+    "prepare": "node scripts/prepare-husky.mjs",
     "prisma:studio": "npm run studio --workspace=backend",
     "prisma:migrate": "npm run migrate --workspace=backend",
     "prisma:seed": "npm run seed --workspace=backend",
