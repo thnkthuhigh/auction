@@ -62,14 +62,6 @@ function maskBidderName(name: string, isCurrentUser: boolean) {
   return name.length <= 2 ? `${name[0] ?? '*'}*` : `${name[0]}***${name[name.length - 1]}`;
 }
 
-function createClientRequestId() {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
-  }
-
-  return `bid-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
 export default function AuctionDetailPage() {
   const { id = '' } = useParams<{ id: string }>();
   const location = useLocation();
@@ -86,7 +78,8 @@ export default function AuctionDetailPage() {
     resetAuction,
     viewersCount,
     serverTimeOffsetMs,
-    applyRealtimeBid,
+    addLiveBid,
+    updateAuctionPrice,
   } = useAuctionStore(
     (state) => ({
       liveBids: state.liveBids,
@@ -95,7 +88,8 @@ export default function AuctionDetailPage() {
       resetAuction: state.resetAuction,
       viewersCount: state.viewersCount,
       serverTimeOffsetMs: state.serverTimeOffsetMs,
-      applyRealtimeBid: state.applyRealtimeBid,
+      addLiveBid: state.addLiveBid,
+      updateAuctionPrice: state.updateAuctionPrice,
     }),
     shallow,
   );
@@ -147,15 +141,11 @@ export default function AuctionDetailPage() {
     onError: (err) => toast.error(getErrorMessage(err)),
   });
   const placeBidMutation = useMutation({
-    mutationFn: ({ amount, clientRequestId }: { amount: number; clientRequestId: string }) =>
-      auctionService.placeBid(id, amount, clientRequestId),
+    mutationFn: ({ amount }: { amount: number }) => auctionService.placeBid(id, amount),
     onSuccess: (payload) => {
       if (payload) {
-        applyRealtimeBid({
-          bid: payload,
-          currentPrice: payload.currentPrice,
-          totalBids: payload.totalBids,
-        });
+        addLiveBid(payload);
+        updateAuctionPrice(payload.currentPrice, payload.totalBids);
       }
     },
     onSettled: () => {
@@ -337,7 +327,7 @@ export default function AuctionDetailPage() {
     const startedAt = performance.now();
     const renderCountBefore = renderCountRef.current;
     try {
-      await placeBidMutation.mutateAsync({ amount, clientRequestId: createClientRequestId() });
+      await placeBidMutation.mutateAsync({ amount });
       setLastBidPerf({
         latencyMs: Math.max(0, Math.round(performance.now() - startedAt)),
         renderDelta: Math.max(0, renderCountRef.current - renderCountBefore),
@@ -642,10 +632,7 @@ export default function AuctionDetailPage() {
             <BidForm
               auction={auction}
               onPlaceBid={async (amount) => {
-                await placeBidMutation.mutateAsync({
-                  amount,
-                  clientRequestId: createClientRequestId(),
-                });
+                await placeBidMutation.mutateAsync({ amount });
               }}
               isLoading={placeBidMutation.isPending}
             />

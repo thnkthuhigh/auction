@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 import { io } from 'socket.io-client';
 
 function parseArgs(argv) {
