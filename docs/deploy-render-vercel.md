@@ -26,8 +26,10 @@ Nếu fail thì sửa xong rồi mới deploy.
 - Build Command:
 
 ```bash
-npm ci && npm run build --workspace=packages/shared && npm run build --workspace=backend
+npm ci --include=dev && npm run build --workspace=packages/shared && npm run build --workspace=backend
 ```
+
+`backend` đã ép `prisma generate --schema=prisma/schema.prisma` ngay trong script `build`, nên Render luôn tạo đúng Prisma Client trước khi TypeScript compile.
 
 - Start Command:
 
