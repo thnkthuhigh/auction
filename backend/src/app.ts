@@ -13,6 +13,18 @@ import { logger } from './utils/logger';
 
 const app = express();
 
+function resolveAllowedOrigins(): string[] {
+  const configured =
+    process.env.FRONTEND_URLS || process.env.FRONTEND_URL || 'http://localhost:5173';
+
+  return configured
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter((origin) => origin.length > 0);
+}
+
+const allowedOrigins = resolveAllowedOrigins();
+
 // Security middlewares
 app.use(
   helmet({
@@ -21,7 +33,19 @@ app.use(
 );
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    origin: (origin, callback) => {
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new Error(`Origin ${origin} is not allowed by CORS`));
+    },
     credentials: true,
   }),
 );
