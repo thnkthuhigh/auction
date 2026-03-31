@@ -665,11 +665,14 @@ async function loadBidRealtimeSnapshot(
     redis.lrange(REDIS_KEYS.auctionRecentBids(auctionId), 0, recentLimit - 1),
   ]);
 
-  const parsedCurrentPrice = Number(cachedCurrentPrice);
-  const hasCachedCurrentPrice = Number.isFinite(parsedCurrentPrice) && parsedCurrentPrice >= 0;
+  // NOTE: redis.get() returns null when key doesn't exist.
+  // Number(null) === 0, which incorrectly passes the >= 0 check.
+  // Guard against null before parsing to avoid treating "no cache" as "price = 0".
+  const parsedCurrentPrice = cachedCurrentPrice !== null ? Number(cachedCurrentPrice) : NaN;
+  const hasCachedCurrentPrice = Number.isFinite(parsedCurrentPrice) && parsedCurrentPrice > 0;
   const currentPrice = hasCachedCurrentPrice ? parsedCurrentPrice : Number(auction.currentPrice);
 
-  const parsedTotalBids = Number(cachedTotalBids);
+  const parsedTotalBids = cachedTotalBids !== null ? Number(cachedTotalBids) : NaN;
   const hasCachedCount = Number.isInteger(parsedTotalBids) && parsedTotalBids >= 0;
   let totalBids: number | null = hasCachedCount ? parsedTotalBids : null;
 
