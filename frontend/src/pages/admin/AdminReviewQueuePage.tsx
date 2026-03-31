@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2, FileEdit, Search, XCircle } from 'lucide-react';
+import { CheckCircle2, FileEdit, Search, Trash2, XCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { ReviewAuctionAction } from '@/services/auction.service';
 import { auctionService } from '@/services/auction.service';
@@ -99,6 +99,29 @@ export default function AdminReviewQueuePage() {
       toast.error(error.response?.data?.message || 'Không thể cập nhật trạng thái duyệt');
     },
   });
+
+  const deleteAuctionMutation = useMutation({
+    mutationFn: (auctionId: string) => auctionService.deleteAuction(auctionId),
+    onSuccess: () => {
+      toast.success('Đã xóa phiên đấu giá');
+      setSelectedAuctionId('');
+      queryClient.invalidateQueries({ queryKey: ['admin-review-management'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-dashboard-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-reports-monitoring'] });
+    },
+    onError: (error: { response?: { data?: { message?: string } } }) => {
+      toast.error(error.response?.data?.message || 'Không thể xóa phiên đấu giá');
+    },
+  });
+
+  const handleDelete = () => {
+    if (!selectedItem) return;
+    const confirmed = window.confirm(
+      `Xác nhận xóa vĩnh viễn phiên "${selectedItem.title}"? Hành động này không thể hoàn tác.`,
+    );
+    if (!confirmed) return;
+    deleteAuctionMutation.mutate(selectedItem.id);
+  };
 
   const handleAction = (action: ReviewAuctionAction) => {
     if (!selectedItem) return;
@@ -299,6 +322,23 @@ export default function AdminReviewQueuePage() {
                     Từ chối
                   </button>
                 </div>
+
+                {selectedItem.status === 'ENDED' && (
+                  <div className="mt-4 border-t border-slate-200 pt-4">
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Vùng nguy hiểm
+                    </p>
+                    <button
+                      type="button"
+                      disabled={deleteAuctionMutation.isPending}
+                      onClick={handleDelete}
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100 disabled:opacity-50"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Xóa phiên đấu giá
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           )}
