@@ -62,7 +62,7 @@ export function useAuctionSocket(auctionId: string | undefined, initialLeaderBid
 
   useEffect(() => {
     previousLeaderBidderIdRef.current = initialLeaderBidderId;
-  }, [initialLeaderBidderId]);
+  }, [auctionId, initialLeaderBidderId]);
 
   useEffect(() => {
     if (!auctionId) return;
@@ -78,32 +78,6 @@ export function useAuctionSocket(auctionId: string | undefined, initialLeaderBid
     };
 
     const handleNewBidEvent = ({ bid, currentPrice, totalBids }: BidRealtimePayload) => {
-      const bidderIsNotCurrentUser = bid.bidderId !== user?.id;
-      const currentUserWasLeading = previousLeaderBidderIdRef.current === user?.id;
-
-      if (bidderIsNotCurrentUser && currentUserWasLeading) {
-        toast.custom(
-          (t) => (
-            <div className="max-w-sm rounded-xl border border-[#E7B8C1] bg-white p-3 shadow-lg">
-              <p className="text-sm font-medium text-gray-900">
-                Bạn đã bị vượt mức giá. Hãy đặt giá mới để tiếp tục dẫn đầu.
-              </p>
-              <button
-                type="button"
-                className="mt-2 text-sm font-semibold text-[#7A1F2B] hover:text-[#611521]"
-                onClick={() => {
-                  toast.dismiss(t.id);
-                  scrollToBidInput();
-                }}
-              >
-                Đặt giá ngay
-              </button>
-            </div>
-          ),
-          { duration: 5000 },
-        );
-      }
-
       applyRealtimeBid({ bid, currentPrice, totalBids });
       previousLeaderBidderIdRef.current = bid.bidderId;
     };
@@ -223,7 +197,26 @@ export function useAuctionSocket(auctionId: string | undefined, initialLeaderBid
     });
 
     socket.on('user:outbid', ({ newPrice, newBidder }) => {
-      toast(`Bạn bị vượt giá! ${newBidder} đặt ${newPrice.toLocaleString('vi-VN')} VNĐ`);
+      toast.custom(
+        (t) => (
+          <div className="max-w-sm rounded-xl border border-[#E7B8C1] bg-white p-3 shadow-lg">
+            <p className="text-sm font-medium text-gray-900">
+              {newBidder} đặt {newPrice.toLocaleString('vi-VN')} VNĐ — Bạn đã bị vượt giá!
+            </p>
+            <button
+              type="button"
+              className="mt-2 text-sm font-semibold text-[#7A1F2B] hover:text-[#611521]"
+              onClick={() => {
+                toast.dismiss(t.id);
+                scrollToBidInput();
+              }}
+            >
+              Đặt giá ngay
+            </button>
+          </div>
+        ),
+        { id: 'user-outbid', duration: 5000 },
+      );
     });
 
     socket.on('error', ({ message }) => {

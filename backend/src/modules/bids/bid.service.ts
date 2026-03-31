@@ -803,10 +803,13 @@ async function placeBidUnsafe(
         previousHeldBidderId === bidderId ? amount - previousHeldAmount : amount;
 
       if (additionalHoldRequired > 0) {
-        const bidder = await tx.user.findUnique({
-          where: { id: bidderId },
-          select: { balance: true, isActive: true },
-        });
+        // SELECT FOR UPDATE prevents double-spend when the same user bids on multiple auctions
+        // concurrently — without this, two parallel transactions both see the same balance and
+        // both pass the check, allowing the user to over-commit their funds.
+        const rows = await tx.$queryRaw<
+          Array<{ balance: string; isActive: boolean }>
+        >`SELECT balance, "isActive" FROM "User" WHERE id = ${bidderId} FOR UPDATE`;
+        const bidder = rows[0] ?? null;
 
         if (!bidder || !bidder.isActive) {
           throw new AppError('User not found or inactive', 403);

@@ -119,18 +119,35 @@ export function startAuctionScheduler() {
                 select: { balance: true },
               });
 
-              if (!winner || Number(winner.balance) < additionalCharge) {
-                throw new Error(
-                  `Winner ${winnerId} has insufficient balance for settlement of auction ${auction.id}`,
+              const winnerBalance = winner ? Number(winner.balance) : 0;
+              const chargeableAmount = Math.min(additionalCharge, Math.max(0, winnerBalance));
+
+              if (!winner || chargeableAmount < additionalCharge) {
+                // Log for admin review — do NOT throw or the auction stays stuck forever
+                logger.error(
+                  'Settlement warning: winner has insufficient balance, ending auction with partial charge',
+                  {
+                    auctionId: auction.id,
+                    winnerId,
+                    required: additionalCharge,
+                    available: winnerBalance,
+                    charged: chargeableAmount,
+                  },
+                  'scheduler',
                 );
               }
 
-              await tx.user.update({
-                where: { id: winnerId },
-                data: {
-                  balance: { decrement: additionalCharge },
-                },
-              });
+              if (chargeableAmount > 0) {
+                await tx.user.update({
+                  where: { id: winnerId },
+                  data: {
+                    balance: { decrement: chargeableAmount },
+                  },
+                });
+              }
+
+              // Adjust seller payout to what was actually collected
+              additionalCharge = chargeableAmount;
             }
 
             await tx.user.update({
