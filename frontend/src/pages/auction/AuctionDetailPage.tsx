@@ -431,9 +431,14 @@ export default function AuctionDetailPage() {
                         type="button"
                         onClick={() => void quickBid(amount)}
                         disabled={placeBidMutation.isPending || !canBidNow}
-                        className="rounded-xl border border-[#E7B8C1] bg-[#FFF1F3] px-2 py-2 text-sm font-semibold text-[#7A1F2B] disabled:opacity-60"
+                        className="rounded-xl border border-[#E7B8C1] bg-[#FFF1F3] px-2 py-2 text-[#7A1F2B] disabled:opacity-60"
                       >
-                        +{index === 0 ? 1 : index === 1 ? 2 : 5} bước
+                        <span className="block text-xs font-bold">
+                          {amount.toLocaleString('vi-VN')} ₫
+                        </span>
+                        <span className="block text-[10px] opacity-70">
+                          +{index === 0 ? 1 : index === 1 ? 2 : 5} bước
+                        </span>
                       </button>
                     ))}
                   </div>
