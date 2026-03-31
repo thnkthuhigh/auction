@@ -685,7 +685,12 @@ export async function deleteAuction(id: string, sellerId: string, isAdmin: boole
   if (!isAdmin && auction.sellerId !== sellerId) throw new AppError('Forbidden', 403);
   if (auction.status === 'ACTIVE') throw new AppError('Không thể xoá đấu giá đang diễn ra');
 
-  await prisma.auction.delete({ where: { id } });
+  // Delete bids first to satisfy the foreign key constraint (no onDelete: Cascade in schema)
+  await prisma.$transaction([
+    prisma.bid.deleteMany({ where: { auctionId: id } }),
+    prisma.auction.delete({ where: { id } }),
+  ]);
+
   await Promise.all([
     redis.del(REDIS_KEYS.auctionCurrentPrice(id)),
     redis.del(REDIS_KEYS.auctionBidCount(id)),
