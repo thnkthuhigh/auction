@@ -1,0 +1,438 @@
+Hệ thống là website đấu giá trực tuyến chuyên dành cho các sản phẩm giá trị cao hoặc hiếm, ví dụ:đồ cổ , phỉ thúy , túi limited ,  đồ sưu tầm , …
+Website cho phép nhà cung cấp đăng sản phẩm lên đấu giá và người mua cạnh tranh trả giá theo thời gian thực.
+Mục tiêu là tạo một thị trường minh bạch cho các sản phẩm giá trị cao.
+Xây dựng hệ thống đấu giá công khai:
+giá được hiển thị realtime
+lịch sử trả giá minh bạch
+xác định người thắng rõ ràng
+Giải pháp
+Sử dụng cơ chế đấu giá thị trường (market driven price):
+người mua tự cạnh tranh giá
+giá cuối cùng phản ánh đúng giá trị thị trường
+Hệ thống sẽ:
+lưu toàn bộ lịch sử bid
+timestamp từng bid
+kiểm soát tài khoản
+admin giám sát phiên đấu giá
+Hệ thống tạo marketplace tập trung cho:
+người sưu tầm
+người chơi đồ hiếm
+người đầu tư
+Website cung cấp:
+đấu giá realtime
+countdown thời gian
+cập nhật giá ngay lập tức
+Actors - 3 role chính.
+1. Nhà cung cấp
+Là người sở hữu sản phẩm và muốn bán thông qua đấu giá.
+Quyền
+đăng sản phẩm / cung cấp thông tin cá nhân / chỉnh sửa sản phẩm
+theo dõi phiên đấu giá
+xem kết quả
+Tài khoản
+Đăng ký / Đăng nhập
+Cập nhật thông tin cá nhân
+Sản phẩm
+Tạo mới sản phẩm đấu giá / Nhập thông tin sản phẩm
+Tải ảnh sản phẩm
+Chỉnh sửa thông tin sản phẩm khi chưa được duyệt
+Theo dõi trạng thái sản phẩm
+Theo dõi đấu giá
+Xem sản phẩm của mình đang ở trạng thái nào
+Xem sản phẩm đã được mở phiên đấu giá chưa
+Xem diễn biến phiên đấu giá
+Xem kết quả cuối cùng của phiên đấu giá
+Kết quả
+Xem sản phẩm nào đã bán thành công
+Xem giá chốt cuối cùng
+Xem người thắng đấu giá
+2. Người mua
+Là người tham gia đấu giá.
+Quyền
+xem sản phẩm
+tham gia đấu giá
+đặt bid
+xem lịch sử đấu giá
+Tài khoản
+Đăng ký / Đăng nhập
+Cập nhật thông tin cá nhân
+Xem và tìm kiếm sản phẩm
+Xem danh sách sản phẩm đấu giá
+Xem chi tiết sản phẩm
+Xem giá hiện tại
+Xem thời gian còn lại
+Xem trạng thái phiên đấu giá
+Tham gia đấu giá
+Tham gia phiên đấu giá đang mở
+Đặt giá (bid)
+Theo dõi giá đang dẫn đầu
+Xem lịch sử bid của bản thân
+Xem kết quả
+Xem mình có thắng hay không
+Xem các phiên đã tham gia
+Xem kết quả cuối cùng của từng phiên
+3. Admin
+Quản lý hệ thống.
+Quyền
+duyệt sản phẩm
+quản lý user
+quản lý phiên đấu giá
+xử lý vi phạm
+Quản lý người dùng
+Xem danh sách NCC
+Xem danh sách người mua
+Khóa / mở tài khoản
+Kiểm tra thông tin người dùng
+Quản lý sản phẩm
+Xem danh sách sản phẩm NCC gửi lên
+Duyệt / Từ chối sản phẩm
+Yêu cầu chỉnh sửa thông tin sản phẩm
+Theo dõi trạng thái sản phẩm
+Quản lý phiên đấu giá
+Tạo phiên đấu giá cho sản phẩm đã duyệt
+Thiết lập thời gian bắt đầu và kết thúc
+Thiết lập giá khởi điểm
+Thiết lập bước giá
+Hủy phiên đấu giá nếu cần
+Theo dõi toàn bộ phiên đấu giá
+Quản lý hệ thống
+Giám sát hoạt động đấu giá
+Xử lý trường hợp bất thường hoặc vi phạm
+Xem kết quả các phiên đấu giá
+Quản lý dữ liệu chung của hệ thống
+Luồng nghiệp vụ của NCC
+NCC đăng ký / đăng nhập        ↓NCC tạo sản phẩm mới        ↓Nhập thông tin sản phẩm        ↓Gửi sản phẩm lên hệ thống        ↓Hệ thống ghi nhận trạng thái: Chờ duyệt        ↓Admin kiểm tra sản phẩm        ↓Nếu hợp lệ → duyệt sản phẩmNếu chưa hợp lệ → yêu cầu chỉnh sửa / từ chối        ↓NCC theo dõi trạng thái sản phẩm        ↓Khi sản phẩm được duyệt, Admin tạo phiên đấu giá        ↓NCC theo dõi phiên đấu giá        ↓Sau khi phiên kết thúc, NCC xem kết quả cuối cùng
+Kết quả đầu ra
+Sản phẩm được duyệt hoặc bị từ chối
+Sản phẩm được đưa vào phiên đấu giá
+NCC biết kết quả đấu giá của sản phẩm
+Luồng nghiệp vụ của Buyer
+Buyer đăng ký / đăng nhập        ↓Buyer truy cập danh sách sản phẩm đấu giá        ↓Buyer xem chi tiết sản phẩm        ↓Buyer chọn phiên đang mở        ↓Buyer nhập giá bid        ↓Hệ thống kiểm tra:- phiên có đang diễn ra không- giá bid có hợp lệ không- giá bid có lớn hơn giá hiện tại + bước giá không        ↓Nếu hợp lệ → ghi nhận bid        ↓Hệ thống cập nhật giá hiện tại realtime        ↓Buyer tiếp tục theo dõi và đặt bid nếu muốn        ↓Phiên đấu giá kết thúc        ↓Buyer xem kết quả:- thắnghoặc- không thắng
+Kết quả đầu ra
+Buyer tham gia được phiên đấu giá
+Bid được ghi nhận nếu hợp lệ
+Buyer biết kết quả thắng hoặc thua
+Luồng nghiệp vụ của Admin
+Admin đăng nhập hệ thống        ↓Admin xem danh sách sản phẩm chờ duyệt        ↓Admin kiểm tra thông tin sản phẩm        ↓Ra quyết định:- duyệt - từ chối - yêu cầu chỉnh sửa        ↓Với sản phẩm đã duyệt:Admin tạo phiên đấu giá        ↓Phiên đấu giá được lên lịch        ↓Admin theo dõi quá trình đấu giá        ↓Nếu có vấn đề bất thường, Admin can thiệp quản lý        ↓Khi phiên kết thúc, Admin xem kết quả        ↓Admin lưu trữ và quản lý dữ liệu phiên đấu giá
+Kết quả đầu ra
+Sản phẩm hợp lệ được đưa lên đấu giá
+Phiên đấu giá được tạo và quản lý đúng
+Hệ thống được giám sát và kiểm soát
+Luồng liên kết giữa các role
+NCC đăng sản phẩm
+↓
+Admin duyệt sản phẩm
+↓
+Admin tạo phiên đấu giá
+↓
+Buyer tham gia đấu giá
+↓
+Buyer đặt bid
+↓
+Hệ thống cập nhật giá realtime
+↓
+Hết thời gian
+↓
+Hệ thống xác định người thắng
+↓
+Kết thúc phiên đấu giá
+Luồng nghiệp vụ chính
+Luồng 1: Đăng sản phẩm đấu giá
+Supplier đăng nhập      ↓Supplier tạo sản phẩm      ↓Hệ thống lưu trạng thái "Pending"      ↓Admin kiểm tra sản phẩm      ↓Admin duyệt      ↓Sản phẩm sẵn sàng đấu giá
+Luồng 2: Tạo phiên đấu giá
+Admin chọn sản phẩm      ↓Admin tạo phiên đấu giá      ↓Nhập thời gian bắt đầu      ↓Nhập thời gian kết thúc      ↓Phiên đấu giá được lên lịch
+Luồng 3: Người mua tham gia đấu giá
+Buyer đăng nhập      ↓Buyer xem sản phẩm      ↓Buyer tham gia phiên đấu giá      ↓Buyer đặt giá      ↓Hệ thống kiểm tra hợp lệ      ↓Cập nhật giá hiện tại
+Luồng 4: Xử lý bid realtime
+Buyer A đặt giá      ↓Hệ thống ghi nhận bid      ↓Cập nhật giá hiện tại      ↓Hiển thị cho tất cả người dùng
+Luồng 5: Kết thúc phiên đấu giá
+Đến thời gian kết thúc      ↓Hệ thống khóa phiên đấu giá      ↓Hệ thống xác định bid cao nhất      ↓Buyer đó trở thành người thắng      ↓Hệ thống lưu kết quả
+Hệ thống đấu giá
+Hệ thống đấu giá xử lý tự động trong nền tảng , chịu trách nhiệm vận hành phiên đấu giá, xử lý các giá bid và đảm bảo dữ liệu được cập nhật theo thời gian thực (real-time).
+Hệ thống đảm bảo:
+phiên đấu giá diễn ra đúng thời gian
+giá được cập nhật chính xác
+người thắng được xác định công bằng
+tất cả người mua thấy cùng một thông tin
+Chức năng của hệ thống đấu giá
+Quản lý trạng thái phiên đấu giá
+Hệ thống tự động chuyển trạng thái phiên đấu giá theo thời gian:
+Scheduled – phiên chưa bắt đầu
+Active – phiên đang diễn ra
+Ended – phiên đã kết thúc
+Kiểm tra và xử lý bid
+Khi người mua đặt giá, hệ thống sẽ:
+kiểm tra phiên đấu giá có đang mở không
+kiểm tra giá bid có hợp lệ không
+kiểm tra bước giá
+ghi nhận bid vào hệ thống
+Cập nhật giá hiện tại
+Sau khi nhận bid hợp lệ, hệ thống sẽ:
+cập nhật giá cao nhất hiện tại
+xác định người đang dẫn đầu
+cập nhật số lượt bid
+Đồng bộ dữ liệu real-time
+Khi có bid mới, hệ thống sẽ:
+cập nhật giá cho tất cả người đang xem phiên
+cập nhật lịch sử bid
+hiển thị giá mới ngay lập tức
+Điều này giúp đảm bảo mọi người thấy cùng một mức giá.
+Hiển thị thời gian còn lại
+Hệ thống hiển thị countdown thời gian đấu giá cho người mua.
+Ví dụ:
+00:05:23
+Thời gian sẽ giảm theo từng giây.
+Kết thúc phiên đấu giá
+Khi hết thời gian:
+hệ thống khóa phiên đấu giá
+không nhận thêm bid mới
+xác định bid cao nhất hợp lệ
+Xác định người thắng
+Hệ thống sẽ:
+tìm bid cao nhất
+xác định buyer tương ứng
+lưu kết quả đấu giá
+Lưu lịch sử đấu giá
+Hệ thống lưu toàn bộ thông tin:
+danh sách bid
+thời gian bid
+người bid
+giá bid
+Dữ liệu này giúp đảm bảo tính minh bạch.
+Luồng nghiệp vụ của hệ thống đấu giá
+Luồng 1: Khởi động phiên đấu giá
+Đến thời gian bắt đầu phiên
+↓
+Hệ thống kiểm tra trạng thái phiên
+↓
+Chuyển trạng thái sang "Active"
+↓
+Phiên đấu giá bắt đầu
+↓
+Cho phép người mua đặt bid
+Luồng 2: Xử lý bid của người mua
+Buyer gửi yêu cầu đặt bid
+↓
+Hệ thống nhận yêu cầu
+↓
+Kiểm tra:
+- phiên còn thời gian không
+- giá bid ≥ giá hiện tại + bước giá
+↓
+Nếu hợp lệ:
+↓
+Lưu bid vào hệ thống
+↓
+Cập nhật giá cao nhất
+↓
+Cập nhật người dẫn đầu
+↓
+Đồng bộ dữ liệu cho tất cả người đang xem phiên
+Luồng 3: Cập nhật real-time
+Có bid mới
+↓
+Hệ thống cập nhật dữ liệu
+↓
+Gửi dữ liệu mới đến tất cả client
+↓
+Giao diện cập nhật:
+- giá hiện tại
+- lịch sử bid
+- người dẫn đầu
+Luồng 4: Đếm thời gian đấu giá
+Phiên đấu giá đang hoạt động
+↓
+Hệ thống chạy bộ đếm thời gian
+↓
+Hiển thị countdown cho người mua
+↓
+Thời gian giảm từng giây
+Luồng 5: Kết thúc phiên đấu giá
+Thời gian đấu giá = 0
+↓
+Hệ thống khóa phiên đấu giá
+↓
+Không nhận thêm bid
+↓
+Tìm bid cao nhất
+↓
+Xác định người thắng
+↓
+Lưu kết quả
+Vai trò của hệ thống trong toàn bộ quy trình
+Supplier đăng sản phẩm
+↓
+Admin duyệt sản phẩm
+↓
+Admin tạo phiên đấu giá
+↓
+Hệ thống mở phiên đúng thời gian
+↓
+Buyer tham gia và đặt bid
+↓
+Hệ thống xử lý bid và cập nhật real-time
+↓
+Hết thời gian
+↓
+Hệ thống xác định người thắng
+↓
+Lưu kết quả đấu giá
+Các trường hợp đặc biệt hệ thống phải xử lý
+1. Hai người mua đặt giá gần như cùng lúc
+Có thể xảy ra trường hợp 2 buyer cùng gửi bid gần như cùng thời điểm cho một phiên đấu giá.
+Ví dụ:
+Buyer A bid 55 triệu lúc 10:10:05.120
+Buyer B bid 55 triệu lúc 10:10:05.300
+Cách hệ thống xử lý
+Hệ thống ghi nhận theo timestamp của server
+Bid nào vào trước và hợp lệ sẽ được chấp nhận trước
+Bid đến sau nhưng cùng mức giá sẽ không còn hợp lệ nếu không cao hơn theo bước giá
+Kết quả
+Chỉ một bid được công nhận là hợp lệ trước
+Đảm bảo tính công bằng theo thời gian hệ thống
+2. Buyer đặt giá thấp hơn quy định
+Buyer đặt giá nhỏ hơn giá hiện tại cộng bước giá tối thiểu.
+Ví dụ:
+Giá hiện tại: 50 triệu
+Bước giá: 2 triệu
+Buyer đặt: 51 triệu
+Cách hệ thống xử lý
+Từ chối bid
+Hiển thị thông báo lỗi cho buyer
+Kết quả
+Bid không được ghi nhận
+Giá hiện tại không thay đổi
+3. Buyer đặt giá khi phiên chưa bắt đầu
+Buyer cố đặt bid khi trạng thái phiên vẫn là “Scheduled”.
+Cách hệ thống xử lý
+Không cho phép gửi bid hợp lệ
+Thông báo: phiên chưa bắt đầu
+Kết quả
+Bid bị từ chối
+Buyer chỉ có thể theo dõi thông tin phiên
+4. Buyer đặt giá khi phiên đã kết thúc
+Buyer gửi bid sau thời điểm kết thúc phiên.
+Cách hệ thống xử lý
+Hệ thống kiểm tra thời gian hiện tại của server
+Nếu phiên đã hết hạn thì từ chối bid
+Kết quả
+Bid không được ghi nhận
+Kết quả phiên không thay đổi
+5. Có bid xuất hiện đúng giây cuối cùng
+Buyer đặt bid khi phiên đấu giá gần kết thúc, ví dụ ở giây cuối.
+Cách hệ thống xử lý
+Hệ thống căn cứ vào thời gian server nhận bid
+Nếu bid đến trước hoặc đúng thời điểm kết thúc và hợp lệ thì chấp nhận
+Nếu đến sau thời điểm kết thúc thì từ chối
+Kết quả
+Tránh tranh cãi do khác biệt thời gian giữa máy người dùng và hệ thống
+Dữ liệu lấy theo đồng hồ server làm chuẩn
+6. Buyer bị mất kết nối internet khi đang đấu giá
+Buyer đang theo dõi phiên hoặc đang chuẩn bị bid nhưng bị mất mạng.
+Cách hệ thống xử lý
+Hệ thống vẫn tiếp tục phiên đấu giá bình thường
+Khi buyer kết nối lại, hệ thống tải lại:
+giá hiện tại
+lịch sử bid mới nhất
+thời gian còn lại
+trạng thái phiên
+Kết quả
+Dữ liệu buyer nhìn thấy sau khi vào lại vẫn đồng bộ với hệ thống
+Không rollback phiên đấu giá vì lỗi kết nối phía người dùng
+7. Buyer gửi nhiều bid liên tiếp trong thời gian rất ngắnBuyer spam nhiều lần đặt giá liên tục.
+Cách hệ thống xử lý
+Kiểm tra từng bid theo thứ tự nhận được
+Chỉ bid hợp lệ mới được lưu
+Có thể giới hạn tần suất gửi yêu cầu trong thời gian ngắn để chống spam
+Kết quả
+Hệ thống tránh bị quá tải
+Giảm hành vi spam bid gây nhiễu phiên đấu giá
+8. Hai bid liên tiếp làm thay đổi giá rất nhanh
+Trong phiên đông người tham gia, giá có thể thay đổi liên tục trong vài giây.
+Cách hệ thống xử lý
+Mỗi bid hợp lệ được xử lý tuần tự
+Sau mỗi lần xử lý, hệ thống cập nhật lại giá hiện tại và gửi dữ liệu mới đến tất cả client
+Giao diện buyer luôn hiển thị dữ liệu mới nhất từ server
+Kết quả
+Mọi người cùng nhìn thấy một mức giá thống nhất
+Tránh sai lệch giữa các người mua
+9. Buyer nhìn thấy giá cũ do giao diện chưa cập nhật kịp
+Buyer nhập giá dựa trên thông tin cũ, nhưng trong lúc đó đã có người khác bid cao hơn.
+Cách hệ thống xử lý
+Khi buyer gửi bid, hệ thống không dựa vào dữ liệu đang hiển thị trên màn hình buyer
+Hệ thống kiểm tra lại với giá hiện tại thật trên server
+Nếu giá buyer gửi không còn hợp lệ thì từ chối và yêu cầu cập nhật lại
+Kết quả
+Tránh sai sót do độ trễ giao diện
+Server luôn là nguồn dữ liệu cuối cùng
+10. Phiên đấu giá không có ai tham gia bid
+Phiên diễn ra nhưng không buyer nào đặt giá.
+Cách hệ thống xử lý
+Khi hết thời gian, hệ thống đóng phiên như bình thường
+Ghi nhận kết quả là không có người thắng
+Kết quả
+Phiên kết thúc hợp lệ
+Supplier và Admin có thể xem trạng thái “không thành công”
+11. Sản phẩm bị Admin hủy phiên trước giờ bắt đầu
+Admin phát hiện sản phẩm có vấn đề hoặc thông tin chưa hợp lệ trước khi phiên diễn ra.
+Cách hệ thống xử lý
+Chuyển trạng thái phiên sang “Canceled”
+Không cho buyer tham gia bid
+Hiển thị thông báo phiên đã bị hủy
+Kết quả
+Ngăn không cho phiên lỗi được diễn ra
+Tránh ảnh hưởng đến buyer
+12. Sản phẩm bị phát hiện vi phạm trong khi phiên đang diễn ra
+Trong lúc đấu giá, Admin phát hiện sản phẩm có dấu hiệu giả mạo, sai mô tả hoặc vi phạm chính sách.
+Cách hệ thống xử lý
+Admin có quyền dừng phiên
+Hệ thống đổi trạng thái phiên sang “Suspended” hoặc “Canceled”
+Tạm ngừng nhận bid mới
+Ghi log sự kiện để phục vụ kiểm tra
+Kết quả
+Hệ thống giữ được tính minh bạch và an toàn
+Có cơ sở để xử lý tranh chấp
+13. Buyer thắng đấu giá nhưng có nhiều bid bằng nhau
+Có hai buyer cùng đặt một mức giá cao nhất, nhưng thời điểm nhận khác nhau.
+Cách hệ thống xử lý
+So sánh theo timestamp server
+Bid hợp lệ đến trước sẽ thắng
+Kết quả
+Không xảy ra tình trạng 2 người cùng thắng
+Quy tắc xác định rõ ràng, dễ kiểm tra
+14. Lỗi hệ thống khi đang diễn ra phiên đấu giá
+Máy chủ chậm, lỗi dịch vụ hoặc gián đoạn tạm thời.
+Cách hệ thống xử lý
+Lưu bid ngay khi nhận để tránh mất dữ liệu
+Ghi log mọi giao dịch bid
+Khi hệ thống phục hồi, trạng thái phiên và lịch sử bid phải được khôi phục từ dữ liệu đã lưu
+Admin có quyền kiểm tra và quyết định tiếp tục hoặc tạm dừng phiên nếu cần
+Kết quả
+Giảm rủi ro mất dữ liệu bid
+Đảm bảo khả năng phục hồi hệ thống
+15. Buyer cố thao túng giá hoặc dùng tài khoản bất thường
+Buyer có hành vi:
+bid ảo
+spam bid liên tục
+sử dụng nhiều tài khoản để đẩy giá
+Cách hệ thống xử lý
+Ghi nhận lịch sử bid đầy đủ
+Theo dõi hành vi bất thường
+Cho phép Admin kiểm tra và khóa tài khoản nếu cần
+Gắn cờ các phiên có dấu hiệu bất thường
+Kết quả
+Hạn chế gian lận
+Bảo vệ tính minh bạch của phiên đấu giá
+Người 1 — Thanh (Sheet 1: Phân tích yêu cầu)
+Nên liệt kê: actors (Patient, Dossctor, Admin), user stories, chức năng cho mỗi actor.
+Business rules quan trọng ví dụ:
+Phone: regex, bắt buộc, duy nhất cho tài khoản.
+Tuổi: >=0, ngày sinh không ở tương lai.
+Đặt lịch: không được đặt lịch quá khứ; không trùng slot; giới hạn số booking cùng 1 bệnh nhân trong 1 ngày; min lead time (ví dụ 15 phút); hủy trước X giờ.
+Quyền truy cập: chỉ Doctor/Admin xem/báo cáo, Patient chỉ quản lý booking của mình.
+Yêu cầu phi chức năng: SLA (95% req < 500ms), auth/session timeout, backup DB, HTTPS.
+Người 2 — Thảo (Sheet 2: Kế hoạch kiểm thử)
+Phạm vi: chức năng (end-to-end), tích hợp (API ↔ DB), hệ thống (UI+API+DB).
+Môi trường: staging server, Chrome/Edge/Firefox (bản stable), Win 11; DB snapshot; test accounts.
+Tiêu chí đầu/ra: Entry (staging up, seed data ok), Exit (critical flows pass); Đạt nếu không có Blocker/Critical open.
+Quản lý rủi ro: DB không reset, flaky tests, network instability — mitigation: snapshot/rollback, smoke test trước chạy suite.
